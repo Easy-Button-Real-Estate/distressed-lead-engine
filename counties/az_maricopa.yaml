@@ -1,0 +1,74 @@
+# Maricopa County, AZ - second example config, built with `python -m dle.discover` + plain fetch only
+# (no keys) on 2026-10-20. Shows the "any county" flow: open data where it exists, search_page / manual
+# CSV where it doesn't.
+id: az_maricopa
+county: Maricopa
+state: AZ
+sos_search_url: https://ecorp.azcc.gov/EntitySearch/Index
+
+sources:
+  - name: Maricopa County delinquent tax parcels (Enterprise GIS)
+    list_type: tax_delinquent
+    type: arcgis
+    url: https://services.arcgis.com/ykpntM6e3tHvzKRJ/arcgis/rest/services/ParcelLienDelinquent/FeatureServer/2
+    public_url: https://treasurer.maricopa.gov/
+    limit: 2000                       # ~41k parcels county-wide; raise or add a `where` to target areas
+    map: {parcel_id: APN, address: PropertyFullStreetAddress, details: DeedNumber, source_url: TreasurerWebLink}
+
+  - name: Maricopa County unsold tax-lien parcels (Enterprise GIS)
+    list_type: tax_foreclosure        # liens nobody bought at the tax lien sale - deepest delinquency
+    type: arcgis
+    url: https://services.arcgis.com/ykpntM6e3tHvzKRJ/arcgis/rest/services/ParcelLienDelinquent/FeatureServer/1
+    map: {parcel_id: APN, address: PropertyFullStreetAddress, details: DeedNumber, source_url: TreasurerWebLink}
+
+  - name: Phoenix eviction filings (City of Phoenix HSD)
+    list_type: eviction               # landlord (plaintiff) is the possible motivated seller
+    type: arcgis
+    url: https://maps.phoenix.gov/pub/rest/services/Public/Eviction_Filings_HSD/MapServer/0
+    date_field: File_Date
+    lookback_days: 365                # NOTE: as of 2026-10-20 the newest filing in this layer is 2026-02-27 (published with a lag)
+    out_fields: File_Date,Case_Number,SubCategory,Court,Case_Status,Defendant1_Address,Def1_Zip,Plaintiff_Name
+    map: {address: Defendant1_Address, city: "=PHOENIX", zip: Def1_Zip, owner_name: Plaintiff_Name,
+          event_date: File_Date, details: [Case_Number, SubCategory, Case_Status, Court]}
+
+  - name: Mesa code compliance cases
+    list_type: code_violation
+    type: socrata
+    url: https://citydata.mesaaz.gov/resource/hgf6-yenu.json
+    date_field: opened_date
+    lookback_days: 30
+    map: {address: case_address, city: "=MESA", parcel_id: parcel_number, event_date: opened_date,
+          details: [permit_number, workflow, status]}
+
+  - name: Scottsdale code violations
+    list_type: code_violation
+    type: arcgis
+    url: https://maps.scottsdaleaz.gov/arcgis/rest/services/OpenData_Tabular/MapServer/10
+    date_field: DateComplaintReceived
+    lookback_days: 60
+    map: {address: [StreetNumber, StreetDirection, StreetName, StreetType], city: "=SCOTTSDALE", zip: ZipCode,
+          parcel_id: ParcelCode, event_date: DateComplaintReceived, details: [ViolationCategory, ViolationCode, ComplaintStatus]}
+
+  # Probate: Maricopa County Superior Court case search is a search form, not open data.
+  - name: Probate filings (manual drop-in CSV)
+    list_type: probate
+    type: manual_csv
+    path: inbox/az_maricopa_probate.csv
+    map: {address: Address, city: City, zip: Zip, owner_name: Decedent, event_date: FiledDate, details: CaseNumber}
+
+  # Pre-foreclosure: AZ uses Notices of Trustee's Sale recorded with the Maricopa County Recorder.
+  # Their document search is a JS app; use a manual export, or a search_page source with
+  # provider: brightdata_browser ONLY if the Recorder's terms of use allow automated access.
+  - name: Notices of Trustee Sale (manual drop-in CSV)
+    list_type: pre_foreclosure
+    type: manual_csv
+    path: inbox/az_maricopa_preforeclosure.csv
+    map: {address: Address, city: City, zip: Zip, owner_name: Grantor, event_date: RecordingDate, amount: Amount}
+
+  - name: Recorded liens (manual drop-in CSV)
+    list_type: lien
+    type: manual_csv
+    path: inbox/az_maricopa_liens.csv
+    map: {address: Address, owner_name: Grantor, event_date: RecordingDate, details: DocType}
+
+skiptrace: {min_score: 40, max_per_run: 100}

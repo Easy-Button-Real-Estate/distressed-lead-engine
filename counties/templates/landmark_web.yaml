@@ -1,0 +1,17 @@
+notes: >
+  Landmark Web (Pioneer Technology Group) recorder / clerk official-records search, URLs usually end
+  in /LandmarkWeb or /LandmarkWeb1.4.6.x/. Search by Document Type + recording date range for
+  NOTICE OF DEFAULT, LIS PENDENS, NOTICE OF TRUSTEE SALE, liens (mechanic's, IRS, HOA, judgment).
+  The results grid is loaded by a POST after you accept a disclaimer, so direct fetch usually returns
+  the disclaimer page; brightdata_browser or a manual export is usually needed. Doc type codes differ
+  per county: open the search page once and copy them into params.doc_type. Respect the site's terms.
+method: POST
+render_js: true
+provider: brightdata_browser
+parse:
+  rows: "table#resultsTable tbody tr"
+  header: "table#resultsTable thead th"
+  link: "a[href]"
+pagination: {max_pages: 3}
+date_range: {lookback_days: 7, format: "%m/%d/%Y"}
+delay_seconds: 5

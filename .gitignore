@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+data/
+inbox/*.csv
+output/
+history/
+*history*.json
+*.sqlite
+*.db
+__pycache__/

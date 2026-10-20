@@ -1,0 +1,20 @@
+notes: >
+  Tyler Technologies Odyssey court portals ("Odyssey Portal", "re:SearchTX", "Smart Search",
+  URLs often contain /Portal/ or /PublicAccess/ or /CaseSearch). Used by many state and county courts
+  for probate (estate/guardianship) and civil eviction (forcible detainer / unlawful detainer) cases.
+  Most Odyssey portals are JavaScript apps, often behind a CAPTCHA and a terms-of-use acknowledgement.
+  Many prohibit automated access in their terms: READ THEM. If automation is not allowed, use the
+  portal's own export/print or buy the court's bulk data, and drop it in inbox/ as manual_csv.
+  Where allowed, set provider: brightdata_browser and confirm the selectors against a real results page,
+  because each court customizes its install.
+method: GET
+render_js: true
+provider: brightdata_browser
+parse:
+  rows: "table.kgrid-table tbody tr, #CaseResultsGrid tbody tr, table#SearchResults tbody tr"
+  header: "table thead th"
+  link: "a[href*='Case']"
+  skip_if_contains: "No cases match"
+pagination: {max_pages: 3}
+date_range: {lookback_days: 7, format: "%m/%d/%Y"}
+delay_seconds: 5

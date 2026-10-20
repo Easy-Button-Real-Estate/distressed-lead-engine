@@ -1,0 +1,78 @@
+# King County, WA - demo county (tested live 2026-10-20).
+# Copy counties/_template.yaml to add your own county.
+id: wa_king
+county: King
+state: WA
+sos_search_url: https://ccfs.sos.wa.gov/#/BusinessSearch
+
+sources:
+  - name: KC Treasury tax-foreclosure parcels
+    list_type: tax_foreclosure          # 3+ years delinquent property tax, in county foreclosure
+    type: socrata
+    url: https://data.kingcounty.gov/resource/nx4x-daw6.json
+    public_url: https://data.kingcounty.gov/d/nx4x-daw6
+    map:
+      parcel_id: parcels
+
+  - name: Seattle code complaints & violations (vacant/landlord-tenant/emergency/construction)
+    list_type: code_violation
+    type: socrata
+    url: https://data.seattle.gov/resource/ez4a-iug7.json
+    date_field: opendate
+    lookback_days: 30
+    where: "recordtypedesc like '%Vacant%' OR recordtypedesc like '%LandLord%' OR recordtypedesc like '%Emergency%' OR recordtypedesc like '%Construction%' OR recordtypemapped = 'Case'"
+    map:
+      address: originaladdress1
+      city: originalcity
+      zip: originalzip
+      event_date: opendate
+      details: [recordtypemapped, recordtypedesc, description]
+      source_url: link
+
+  - name: Seattle Fire 911 - structure fires
+    list_type: fire                     # dispatch call, not confirmed damage
+    type: socrata
+    url: https://data.seattle.gov/resource/kzjm-xkqj.json
+    date_field: datetime
+    lookback_days: 30
+    where: "type in ('Fire in Building','Residential Fire','Fire in Single Family Res','Fire Residential (Multi)','Chimney Fire','Fire House Boat')"
+    map:
+      address: address
+      city: "=SEATTLE"
+      event_date: datetime
+      details: [type, incident_number]
+
+  # Probate: King County Superior Court case records (KC-Script / Portal) are not an open API.
+  # Export new probate filings yourself (or buy a list) and drop the CSV at inbox/wa_king_probate.csv.
+  - name: Probate filings (manual drop-in CSV)
+    list_type: probate
+    type: manual_csv
+    path: inbox/wa_king_probate.csv
+    map: {address: Address, city: City, zip: Zip, owner_name: Decedent, event_date: FiledDate, details: CaseNumber}
+
+  # Pre-foreclosure (Notices of Trustee's Sale) are recorded documents in KC Recorder's Landmark search,
+  # not an open dataset. Drop an export here.
+  - name: Notices of Trustee Sale (manual drop-in CSV)
+    list_type: pre_foreclosure
+    type: manual_csv
+    path: inbox/wa_king_preforeclosure.csv
+    map: {address: Address, city: City, zip: Zip, owner_name: Grantor, event_date: RecordingDate, amount: Amount}
+
+  - name: Obituaries (pre-probate) - add an RSS feed
+    list_type: pre_probate
+    type: rss
+    enabled: false
+    note: add a local funeral-home / newspaper obituary RSS URL, then set enabled true
+    url: https://example.com/obituaries/rss
+    map: {owner_name: title, event_date: pubDate, source_url: link, details: description}
+
+# Turns parcel numbers into street addresses (KC GIS parcel layer)
+parcel_enrich:
+  url: https://gismaps.kingcounty.gov/arcgis/rest/services/Property/KingCo_PropertyInfo/MapServer/2
+  pin_field: PIN
+  map: {address: ADDR_FULL, city: POSTALCTYNAME, zip: ZIP5}
+  extra: {use: PREUSE_DESC, land_value: APPRLNDVAL, improvement_value: APPR_IMPR}
+
+skiptrace:
+  min_score: 40
+  max_per_run: 100

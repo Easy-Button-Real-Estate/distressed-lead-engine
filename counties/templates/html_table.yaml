@@ -1,0 +1,12 @@
+notes: >
+  Generic results page with a plain <table>. Column names come from the header row; map them in
+  your source's `map:` block. Works for many sheriff-sale lists, treasurer delinquent lists and
+  small-county clerk search results that use a GET URL.
+method: GET
+parse:
+  rows: "table tr"
+  header: "table tr th"
+  link: "a[href]"
+pagination: {max_pages: 1}
+date_range: {lookback_days: 7, format: "%m/%d/%Y"}
+delay_seconds: 3

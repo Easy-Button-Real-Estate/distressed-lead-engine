@@ -1,0 +1,44 @@
+name: Daily distressed leads
+on:
+  schedule:
+    - cron: "0 14 * * *"   # 14:00 UTC = 7am Pacific (6am during PST). Change if you like.
+  workflow_dispatch: {}     # "Run workflow" button
+permissions:
+  contents: write
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install -r requirements.txt
+      - name: Restore lead history (so only NEW leads are flagged)
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: lead-history-${{ github.run_id }}
+          restore-keys: lead-history-
+      - name: Run
+        env:
+          YOUR_NAME: ${{ secrets.YOUR_NAME }}
+          YOUR_COMPANY: ${{ secrets.YOUR_COMPANY }}
+          YOUR_PHONE: ${{ secrets.YOUR_PHONE }}
+          GOVFILES_API_KEY: ${{ secrets.GOVFILES_API_KEY }}
+          SKIPTRACE_PROVIDER: ${{ secrets.SKIPTRACE_PROVIDER }}
+          DEALMACHINE_API_KEY: ${{ secrets.DEALMACHINE_API_KEY }}
+          BATCHDATA_API_KEY: ${{ secrets.BATCHDATA_API_KEY }}
+          OUTREACH_WEBHOOK_URL: ${{ secrets.OUTREACH_WEBHOOK_URL }}
+          SCRAPERAPI_KEY: ${{ secrets.SCRAPERAPI_KEY }}
+          SCRAPER_PROVIDER: ${{ secrets.SCRAPER_PROVIDER }}
+          BRIGHTDATA_API_KEY: ${{ secrets.BRIGHTDATA_API_KEY }}
+          BRIGHTDATA_UNLOCKER_ZONE: ${{ secrets.BRIGHTDATA_UNLOCKER_ZONE }}
+          BRIGHTDATA_BROWSER_WSS: ${{ secrets.BRIGHTDATA_BROWSER_WSS }}
+        run: python -m dle.run
+      - name: Download today's leads (Actions run page -> Artifacts)
+        uses: actions/upload-artifact@v4
+        with:
+          name: leads-${{ github.run_number }}
+          path: output/
+          retention-days: 30
+# Keep your repo PRIVATE if you add skip tracing - lead files contain phone numbers.

@@ -1,0 +1,63 @@
+# Copy to counties/<state>_<county>.yaml (e.g. tx_harris.yaml). Files starting with "_" are ignored.
+id: st_county
+county: Your County
+state: ST
+sos_search_url: https://your-state-sos-business-search
+
+sources:
+  # list_type must be one of: probate, pre_probate, pre_foreclosure, tax_foreclosure, tax_delinquent,
+  # code_violation, vacant_building, eviction, water_shutoff, lien, fire
+  # type: socrata | arcgis | csv_url | search_page | manual_csv | rss
+  - name: Example open-data code violations
+    list_type: code_violation
+    type: socrata
+    url: https://data.yourcity.gov/resource/abcd-1234.json
+    date_field: violation_date        # only pull the last N days
+    lookback_days: 30
+    where: ""                         # optional SoQL filter
+    map:                              # left = our field, right = the column name in the source
+      address: address
+      city: city
+      zip: zip
+      event_date: violation_date
+      details: [violation_type, description]
+
+  - name: Treasurer delinquent tax list (CSV download)
+    list_type: tax_delinquent
+    type: csv_url
+    url: https://treasurer.yourcounty.gov/delinquent.csv
+    map: {parcel_id: Parcel, owner_name: Owner, address: SitusAddress, amount: AmountDue}
+
+  - name: ArcGIS layer (many counties publish here)
+    list_type: lien
+    type: arcgis
+    url: https://gis.yourcounty.gov/arcgis/rest/services/Something/MapServer/0
+    where: "1=1"
+    map: {address: SITE_ADDR, parcel_id: PIN, owner_name: OWNER}
+
+  - name: Court / recorder search page (see counties/templates/ and ADD_YOUR_COUNTY.md)
+    list_type: eviction
+    type: search_page
+    template: html_table               # tyler_odyssey | landmark_web | html_table
+    enabled: false                     # turn on after you've checked the site's terms + selectors
+    url: "https://court.yourcounty.gov/search?type={case_type}&from={from}&to={to}&page={page}"
+    params: {case_type: "EV"}
+    date_range: {lookback_days: 7, format: "%m/%d/%Y"}
+    parse: {rows: "table tbody tr", header: "table thead th", link: "a"}
+    pagination: {start: 1, max_pages: 3}
+    delay_seconds: 3
+    map: {address: Address, owner_name: Plaintiff, event_date: "File Date", details: "Case Number", source_url: url}
+
+  - name: Anything you export by hand (court probate search, evictions, water shut-offs, PropStream)
+    list_type: probate
+    type: manual_csv
+    path: inbox/st_county_probate.csv
+    map: {address: Address, city: City, zip: Zip, owner_name: Decedent, event_date: FiledDate}
+
+# Optional: turn parcel numbers into addresses with your county's ArcGIS parcel layer
+# parcel_enrich:
+#   url: https://gis.yourcounty.gov/arcgis/rest/services/Parcels/MapServer/0
+#   pin_field: PIN
+#   map: {address: SITUS_ADDR, city: SITUS_CITY, zip: SITUS_ZIP}
+
+skiptrace: {min_score: 40, max_per_run: 100}
