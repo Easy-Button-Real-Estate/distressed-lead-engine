@@ -1,0 +1,133 @@
+# EXAMPLE — verify before you use this.
+# Portland, Multnomah County, OR. Minimums change by zone, so they live in
+# the zones table instead of one citywide number. The "z" overlay (constrained
+# sites) is skipped for middle housing and lot splits. Not a zoning determination.
+# Checked: 2026-10-21.
+
+kind: example
+checked: 2026-10-21
+
+market:
+  name: "Portland, OR (example — verify)"
+  city: Portland
+  county: Multnomah
+  state: OR
+  notes: >
+    Oregon's middle-housing law (HB 2001) and Portland's Residential Infill
+    Project are why a lot of single-dwelling zones allow more than one house.
+    A Middle Housing Land Division is not the same thing as a normal lot split.
+
+enabled:
+  - adu
+  - lot_split
+  - middle_housing
+  - basement
+  - garage_conversion
+  - underbuilt
+  - add_bed_bath
+  - attic_or_second_story
+  - corner_or_alley
+
+# The zones table is the real allow-list. These lists are here so a person
+# can read the file without decoding the table. Keep them in sync.
+zoning:
+  adu: ["R2.5", "R5", "R7", "R10", "R20"]
+  dadu: []
+  lot_split: ["R2.5", "R5", "R7", "R10", "R20"]
+  middle_housing: ["R2.5", "R5", "R7", "R10", "R20"]
+  garage_conversion: []
+  second_story: []
+
+# ADU numbers are the "one ADU with an attached house" minimum (Table 205-1).
+# Two ADUs need the larger middle-housing lot size. Split numbers are 2x the
+# triplex/fourplex minimum, which is a screen, not a land-division approval.
+zones:
+  - code: "R2.5"
+    adu_min_lot_sqft: 1500
+    middle_min_lot_sqft: 1500
+    middle_max_units: 4
+    split_min_lot_sqft: 1500
+    split_min_parent_lot_sqft: 3000
+  - code: "R5"
+    adu_min_lot_sqft: 2500
+    middle_min_lot_sqft: 3000
+    middle_max_units: 4
+    split_min_lot_sqft: 3000
+    split_min_parent_lot_sqft: 6000
+  - code: "R7"
+    adu_min_lot_sqft: 3500
+    middle_min_lot_sqft: 4200
+    middle_max_units: 4
+    split_min_lot_sqft: 4200
+    split_min_parent_lot_sqft: 8400
+  - code: "R10"
+    adu_min_lot_sqft: 5000
+    middle_min_lot_sqft: 6000
+    middle_max_units: 4
+    split_min_lot_sqft: 6000
+    split_min_parent_lot_sqft: 12000
+  - code: "R20"
+    adu_min_lot_sqft: 10000
+    middle_min_lot_sqft: 12000
+    middle_max_units: 4
+    split_min_lot_sqft: 12000
+    split_min_parent_lot_sqft: 24000
+
+rules:
+  adu:
+    min_lot_sqft: null          # taken from the matching zone row
+    min_lot_width_ft: null
+    max_adu_sqft: null
+    max_units_on_lot: null
+    max_adus: 2                 # a house can have two ADUs on a big enough lot
+    allow_on_vacant: false
+    setbacks_ft: {front: null, side: null, rear: null}
+    max_lot_coverage_pct: null
+    verify: "One ADU uses the smaller lot minimum. Two ADUs use the triplex/fourplex minimum. Detached ADUs have extra rules."
+
+  lot_split:
+    min_lot_sqft: null
+    min_parent_lot_sqft: null
+    min_lot_width_ft: null
+    max_lots: 2
+    skip_if_zoning_contains: ["z"]
+    verify: "This uses 2x the middle-housing lot size as a screen. Confirm a Middle Housing Land Division versus a standard land division with PP&D."
+
+  middle_housing:
+    max_units: 4
+    min_lot_sqft: null
+    min_lot_sqft_per_unit: null
+    skip_if_zoning_contains: ["z"]   # "z" overlay is limited to a house, a house + 1 ADU, or a duplex
+    verify: "Four to six units can be allowed when half the units are affordable. This screen stops at 4. The lot also has to be on a maintained street."
+
+  basement:
+    min_basement_sqft: 400
+    max_finished_share: 0.50
+
+  garage_conversion:
+    min_garage_sqft: 240
+    min_garage_spaces: 1
+
+  underbuilt:
+    max_far: 0.35               # Portland already allows a higher FAR once you add units. This is still just your screen.
+    min_lot_sqft: 3000
+    verify: "Portland's real FAR goes up when you build more units. 0.35 is your 'small house' cutoff, not the code maximum."
+
+  add_bed_bath:
+    min_sqft_per_bedroom: 700
+    min_beds_for_bath_check: 3
+    max_baths_for_mismatch: 1
+
+  attic_or_second_story:
+    max_stories: 1
+    min_lot_sqft: 2500
+    min_house_sqft: 800
+
+  corner_or_alley:
+    only_with_another_opportunity: false
+
+sources:
+  - "Portland residential infill options (triplex/fourplex minimums by zone, and the z overlay): https://www.portland.gov/ppd/residential-infill-options"
+  - "ADU lot sizes, Table 205-1 and Table 205-2: https://www.portland.gov/ppd/zoning-land-use/zoning-code-overview/adu-zoning"
+  - "Middle housing land divisions: https://www.portland.gov/ppd/zoning-land-use/zoning-code-overview/residential-infill"
+  - "Uncertain: min lot width, exact setbacks, and which R5 lots are in the z overlay unless the zoning text itself contains a trailing z (R5z). Six-unit affordable projects are not screened."

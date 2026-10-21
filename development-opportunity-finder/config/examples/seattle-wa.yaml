@@ -1,0 +1,112 @@
+# EXAMPLE — verify before you use this.
+# Seattle, King County, WA. A filled-in sample so you can see a real config
+# and run the sample CSV. Not a zoning determination. Codes change, and
+# environmentally critical areas, trees, and the shoreline are not in a CSV.
+# Checked: 2026-10-21.
+
+kind: example
+checked: 2026-10-21
+
+market:
+  name: "Seattle, WA (example — verify)"
+  city: Seattle
+  county: King
+  state: WA
+  notes: >
+    Neighborhood Residential zones were rewritten for HB 1110 / HB 1337.
+    The lot-size number below is for lots created after that code update.
+    Older NR1 / NR2 / NR3 labels still show up on assessor and PropStream
+    exports, which is why those codes are on the lists.
+
+enabled:
+  - adu
+  - lot_split
+  - middle_housing
+  - basement
+  - garage_conversion
+  - underbuilt
+  - add_bed_bath
+  - attic_or_second_story
+  - corner_or_alley
+
+# "NR" matches NR1, NR2, and NR3. RSL is residential small lot.
+zoning:
+  adu: ["NR", "NR1", "NR2", "NR3", "RSL"]
+  dadu: []
+  lot_split: ["NR", "NR1", "NR2", "NR3", "RSL"]
+  middle_housing: ["NR", "NR1", "NR2", "NR3", "RSL"]
+  garage_conversion: []       # reuse the ADU list
+  second_story: []            # reuse the ADU list
+
+rules:
+  adu:
+    # SMC 23.44.060 does not set a separate minimum lot size just to add an ADU.
+    # ADUs count toward the unit cap. Up to two of the units may be ADUs.
+    min_lot_sqft: null
+    min_lot_width_ft: null
+    max_adu_sqft: null
+    max_units_on_lot: 4
+    max_adus: 2
+    allow_on_vacant: false
+    setbacks_ft:
+      front: null             # yard rules moved in the 2025-2026 update; don't guess
+      side: null
+      rear: null
+    max_lot_coverage_pct: null
+    verify: "Seattle allows up to two ADUs per lot and they count toward density. Confirm with SDCI, not this file."
+
+  lot_split:
+    # New lots: 5,000 sqft minimum (SMC 23.44.060, lots created after the 2025 update).
+    # So the lot you own needs about 10,000 sqft to cut two legal pieces.
+    min_lot_sqft: 5000
+    min_parent_lot_sqft: 10000
+    min_lot_width_ft: null
+    min_parent_width_ft: null
+    max_lots: 2
+    skip_if_zoning_contains: []
+    verify: "5,000 sqft is the minimum for a new lot in the 2025 NR code. Unit-lot subdivisions and the old 75/80 rule are different tools."
+
+  middle_housing:
+    max_units: 4
+    min_lot_sqft: 2500        # enough to bother; the real density math is in the verify line
+    min_lot_sqft_per_unit: null
+    min_lot_width_ft: null
+    skip_if_zoning_contains: []
+    verify: "SMC 23.44.060: non-stacked density is 1 unit per 1,250 sqft, and a lot under 5,000 sqft may still hold 4 units. Near major transit the cap can be 6. This screen uses 4."
+
+  basement:
+    min_basement_sqft: 400
+    max_finished_share: 0.50
+    verify: "Seattle does not label 'unfinished basement' as its own permit path. Confirm headroom and egress."
+
+  garage_conversion:
+    min_garage_sqft: 240
+    min_garage_spaces: 1
+    verify: "A garage conversion is usually an ADU or added living area. Parking rules changed; confirm the current ones."
+
+  underbuilt:
+    # Investor cutoff, not Seattle's FAR cap. FAR in NR varies and was rewritten.
+    max_far: 0.30
+    min_lot_sqft: 5000
+    max_house_sqft: null
+    verify: "0.30 is your screen for a small house on a big lot. Look up the real floor-area limit before you design anything."
+
+  add_bed_bath:
+    min_sqft_per_bedroom: 700
+    min_beds_for_bath_check: 3
+    max_baths_for_mismatch: 1
+
+  attic_or_second_story:
+    max_stories: 1
+    min_lot_sqft: 4000
+    min_house_sqft: 800
+    verify: "Height and lot coverage are zone rules. One story is only a clue."
+
+  corner_or_alley:
+    only_with_another_opportunity: false
+
+sources:
+  - "Seattle Municipal Code 23.44.060 (density and minimum lot size), Ord. 127376 (2025): https://library.municode.com/wa/seattle/codes/municipal_code?nodeId=TIT23LAUSCO_SUBTITLE_IIILAUSRE_CH23.44NERE"
+  - "SDCI, Accessory Dwelling Units (up to two ADUs per lot, counted toward density): https://www.seattle.gov/construction-and-inspections/permits/common-projects/accessory-dwelling-units"
+  - "OPCD summary of NR zone standards, effective mid-January 2026 (Council Bill 120993). Read this beside the municode page; they were rolling out together: https://www.seattle.gov/documents/Departments/OPCD/SeattlePlan/OneSeattlePlanUpdatedNRZoneStandardsJanuary2026.pdf"
+  - "Uncertain: yard depths, the exact FAR cap, and which lots qualify for 6 units. Those depend on transit walksheds and critical areas this file cannot see. Min lot width for a short plat was not confirmed, so it is left blank."

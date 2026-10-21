@@ -1,0 +1,107 @@
+# EXAMPLE — verify before you use this.
+# Austin, Travis County, TX. HOME Phase 1 and Phase 2. Austin repealed the
+# old "accessory apartment" section, so a second unit is just another unit,
+# not a separate ADU category. Deed restrictions stop a lot of these and the
+# city will not check them for you. Not a zoning determination.
+# Checked: 2026-10-21.
+
+kind: example
+checked: 2026-10-21
+
+market:
+  name: "Austin, TX (example — verify)"
+  city: Austin
+  county: Travis
+  state: TX
+  notes: >
+    SF-1, SF-2, and SF-3 are the HOME zones in this file. Other single-family
+    districts (SF-4A and friends) have their own small-lot table. Read the
+    deed restrictions before you get excited about a 1,800 sqft lot.
+
+enabled:
+  - adu
+  - lot_split
+  - middle_housing
+  - basement
+  - garage_conversion
+  - underbuilt
+  - add_bed_bath
+  - attic_or_second_story
+  - corner_or_alley
+
+zoning:
+  adu: ["SF-1", "SF-2", "SF-3"]
+  dadu: []
+  lot_split: ["SF-1", "SF-2", "SF-3"]
+  middle_housing: ["SF-1", "SF-2", "SF-3"]
+  garage_conversion: []
+  second_story: []
+
+rules:
+  adu:
+    # City of Austin: two-unit or three-unit residential on SF-1/2/3 needs
+    # a lot of at least 5,750 sqft. That is the "can I add a unit" test.
+    min_lot_sqft: 5750
+    min_lot_width_ft: null
+    max_adu_sqft: null          # the old accessory-apartment size cap was repealed
+    max_units_on_lot: 3
+    max_adus: null
+    allow_on_vacant: false
+    setbacks_ft: {front: null, side: null, rear: null}   # see 25-2-773; not copied from a blog
+    max_lot_coverage_pct: null
+    verify: "Austin calls this two-unit or three-unit residential, not an ADU. Deed restrictions can ban it even when zoning allows it."
+
+  lot_split:
+    # HOME Phase 2 small-lot single family: each new lot at least 1,800 sqft
+    # and under 5,750, and at least 15 ft wide (25-2-779, SF-3 or more restrictive).
+    # Parent width test is 2 x 15 = 30 ft, which misses flag lots. Confirm those.
+    min_lot_sqft: 1800
+    min_parent_lot_sqft: 3600
+    min_lot_width_ft: 15
+    min_parent_width_ft: null
+    max_lots: 2
+    skip_if_zoning_contains: []
+    verify: "Infill plats have extra gates (size, replat, not a plat vacation). A 15 ft lot is legal on paper and hard to build. Check the deed restrictions."
+
+  middle_housing:
+    max_units: 3
+    min_lot_sqft: 5750
+    min_lot_sqft_per_unit: null
+    min_lot_width_ft: null
+    skip_if_zoning_contains: []
+    verify: "Up to three units on SF-1, SF-2, and SF-3 at 5,750 sqft or more. Lots between 1,800 and 5,749 sqft are one unit (small-lot single family), which is the lot-split check instead."
+
+  basement:
+    min_basement_sqft: 400
+    max_finished_share: 0.50
+    verify: "Basements are uncommon in Austin. If the column is empty, this check simply finds nothing."
+
+  garage_conversion:
+    min_garage_sqft: 240
+    min_garage_spaces: 1
+    verify: "Converting the garage still has to land as a legal unit under 25-2-773, and you may lose the parking the lot was counting on."
+
+  underbuilt:
+    max_far: 0.30
+    min_lot_sqft: 5750
+    verify: "0.30 is your screen. Subchapter F and the HOME floor-area rules are the real cap, and they change with the unit count."
+
+  add_bed_bath:
+    min_sqft_per_bedroom: 700
+    min_beds_for_bath_check: 3
+    max_baths_for_mismatch: 1
+
+  attic_or_second_story:
+    max_stories: 1
+    min_lot_sqft: 5750
+    min_house_sqft: 800
+    verify: "Height for two- and three-unit projects is its own number. One story only means 'look up'."
+
+  corner_or_alley:
+    only_with_another_opportunity: false
+
+sources:
+  - "Austin Development Services, Additional Dwelling Units (SF-1/SF-2/SF-3, 5,750 sqft for a second unit): https://www.austintexas.gov/development-services/additional-dwelling-units"
+  - "HOME Amendments (Phase 1 up to three units; Phase 2 small lots of at least 1,800 and under 5,750): https://www.austintexas.gov/development-services/home-amendments"
+  - "City Code 25-2-779 small-lot standards, including 1,800 sqft and 15 ft width, as quoted in a Board of Adjustment staff sheet: https://services.austintexas.gov/edims/document.cfm?id=474488"
+  - "Uncertain: setbacks and coverage for a two-unit project (they live in 25-2-773 and were not copied here). Flag-lot width is 20 ft, not 15. Deed restrictions are not in the zoning code at all."

@@ -1,0 +1,134 @@
+# YOUR market. This is the only file you need to edit.
+#
+# Say "set this up for <city, state>" and Claude will look up the zoning code,
+# fill this in, cite the pages it used, and mark anything it could not confirm.
+# Or fill it in yourself. Blank means "I don't know". The screen skips that
+# gate instead of inventing a number.
+#
+# The files in config/examples/ are filled-in samples for other cities.
+# They are labeled example for a reason. Do not point your list at one of
+# them unless you are actually in that city, and even then re-check the numbers.
+
+kind: yours                 # leave this as yours. The samples use "example".
+checked:                    # Claude puts the date it looked the code up.
+
+market:
+  name: "My market"         # shows up at the top of the summary
+  city: ""                  # "Austin" — leave blank if this file is the whole county
+  county: ""                # "Travis"
+  state: ""                 # two letters, "TX"
+  notes: ""                 # anything you want repeated on the report
+
+# Turn a check off by deleting its line or putting a # in front of it.
+# To add your own, see the bottom of dof/opportunities.py.
+enabled:
+  - adu
+  - lot_split
+  - middle_housing
+  - basement
+  - garage_conversion
+  - underbuilt
+  - add_bed_bath
+  - attic_or_second_story
+  - corner_or_alley
+
+# Zoning codes that ALLOW each use, written the way they show up on your CSV.
+# Matching ignores case, spaces, and dashes. "NR" also matches "NR3".
+# "R5" also matches "R5z" (one trailing letter is treated as an overlay).
+# A one-letter code like "R" does not match everything, on purpose.
+# Leave a list empty if you don't know it yet. The check then runs only
+# where you also set a lot size, and the hit is marked low confidence.
+zoning:
+  adu: []                   # e.g. ["NR", "RSL"] or ["SF-1", "SF-2", "SF-3"]
+  dadu: []                  # only if your city treats a detached unit separately
+  lot_split: []
+  middle_housing: []        # duplex, triplex, fourplex, townhomes
+  garage_conversion: []     # leave empty to reuse the ADU list
+  second_story: []          # leave empty to reuse the ADU list
+
+# OPTIONAL. Use this only when the minimum lot size depends on the zone.
+# First match wins, so put "R2.5" above "R2". If you only have one set of
+# numbers for the whole city, skip this section and use `rules:` below.
+# zones:
+#   - code: "R5"
+#     adu_min_lot_sqft: 2500
+#     middle_min_lot_sqft: 3000
+#     middle_max_units: 4
+#     split_min_lot_sqft: 3000          # each new lot
+#     split_min_parent_lot_sqft: 6000   # the lot you already own
+
+rules:
+  adu:
+    min_lot_sqft: null          # smallest lot that can add an ADU. null = you don't know
+    min_lot_width_ft: null
+    max_adu_sqft: null          # printed on the report, not used as a filter
+    max_units_on_lot: null      # house + ADUs together. null = don't cap it
+    max_adus: null              # how many ADUs the city allows on one lot
+    allow_on_vacant: false      # an ADU usually needs a main house
+    setbacks_ft:                # printed on the report so you remember them
+      front: null
+      side: null
+      rear: null
+    max_lot_coverage_pct: null
+    verify: ""                  # one sentence added to every ADU hit
+
+  lot_split:
+    # A split is skipped entirely until you set one of these two numbers.
+    # A zoning match by itself is not enough to call a lot "splittable".
+    min_lot_sqft: null          # size of EACH new lot
+    min_parent_lot_sqft: null   # size the existing lot must already be. If blank, we use 2x min_lot_sqft
+    min_lot_width_ft: null      # width of each new lot. The parent must be about 2x this
+    min_parent_width_ft: null   # set this if 2x the new-lot width is the wrong test
+    max_lots: 2
+    skip_if_zoning_contains: [] # e.g. ["z"] to skip a constrained-site overlay
+    verify: ""
+
+  middle_housing:
+    max_units: 4                # 2 = duplex, 3 = triplex, 4 = fourplex or townhomes
+    min_lot_sqft: null
+    min_lot_sqft_per_unit: null # optional. 1250 means a 5,000 sqft lot can hold 4
+    min_lot_width_ft: null
+    skip_if_zoning_contains: []
+    verify: ""
+
+  basement:
+    # Your bar for "worth finishing", not a city rule.
+    min_basement_sqft: 400
+    max_finished_share: 0.50    # finished / total. 0.50 flags a basement that is half done or less
+    unfinished_type_words: ["unfinished", "partial", "partially finished", "partly finished"]
+    finished_type_words: ["finished", "full finished", "fully finished"]
+    # Crawl space and slab are not living-space projects. Leave them here.
+    not_basement_words: ["crawl", "slab", "none", "no basement", "pier"]
+    verify: ""
+
+  garage_conversion:
+    min_garage_sqft: 240        # about a one-car garage. A smaller number in the file is a no
+    min_garage_spaces: 1
+    verify: ""
+
+  underbuilt:
+    # Small house on a big lot. This ratio is yours. It is not the city's FAR cap.
+    max_far: 0.30               # house sqft / lot sqft. Lower = pickier
+    min_lot_sqft: 5000          # ignore little lots
+    max_house_sqft: null        # optional extra cap on the house
+    verify: ""
+
+  add_bed_bath:
+    min_sqft_per_bedroom: 700   # at or above this, the house may have room for another bedroom
+    min_beds_for_bath_check: 3  # only nag about baths when there are at least this many bedrooms
+    max_baths_for_mismatch: 1   # 3+ beds and this many baths (or fewer) gets flagged
+    verify: ""
+
+  attic_or_second_story:
+    max_stories: 1              # 1 flags one-story houses. Set 1.5 to also flag capes
+    min_lot_sqft: 4000
+    min_house_sqft: 800
+    verify: ""
+
+  corner_or_alley:
+    # true = only mention a corner or alley when the row already has another hit
+    only_with_another_opportunity: false
+    verify: ""
+
+# Pages Claude used, one per line. Leave empty until the code has been looked up.
+sources: []

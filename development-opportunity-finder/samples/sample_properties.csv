@@ -1,0 +1,16 @@
+Address,City,State,Zip,APN,Owner 1 First Name,Owner 1 Last Name,Property Type,Zoning,Lot Size SqFt,Lot Width,Building Sqft,Year Built,Bedrooms,Total Bathrooms,Stories,Basement SqFt,Basement Finished SqFt,Basement Type,Garage SqFt,Garage Type,Units,Corner Lot,Alley
+101 Big Lot Ave,Seattle,WA,98112,123456-0001,Ada,Owner,Single Family Residential,NR3,12000,80,1600,1924,3,1,1,1000,0,Unfinished,440,Attached,1,Yes,No
+202 Finished St,Seattle,WA,98122,123456-0002,Ben,Owner,Single Family,NR2,6000,50,2200,2005,4,2,2,800,800,Finished,0,None,1,No,No
+303 Full House Rd,Seattle,WA,98103,123456-0003,Cam,Owner,Fourplex,NR3,8000,60,3600,1960,8,4,2,,,,,,4,No,No
+404 Industrial Way,Seattle,WA,98134,123456-0004,Delta,LLC,Warehouse,IL,40000,200,10000,1970,,,,,,,,,,No,No
+505 Vacant Ln,Seattle,WA,98118,123456-0005,,,Vacant Land,NR1,14000,100,,,,,,,,,,,0,No,No
+606 Partial Pl,Seattle,WA,98116,123456-0006,Eve,Owner,SFR,NR3,4800,40,1500,1948,2,1,1,900,300,Partial,200,Attached,1,No,No
+707 Tiny Ct,Seattle,WA,98144,123456-0007,Finn,Owner,Single Family,NR3,1800,30,700,1910,2,1,1,,,,,,1,No,No
+808 Blank Zone Ave,Seattle,WA,98115,123456-0008,Gia,Owner,Single Family,,11000,70,1800,1955,3,2,1,,,,,,1,No,No
+909 Condo Way,Seattle,WA,98121,123456-0009,Hal,Owner,Condo,NR3,1500,,900,2010,2,2,1,,,,,,1,No,No
+111 Corner Blvd,Seattle,WA,98105,123456-0010,Ivy,Owner,Single Family,NR3,4000,45,2400,1998,3,2,2,,,,,,1,Yes,Yes
+222 Alley Garage,Seattle,WA,98107,123456-0011,Jed,Owner,Single Family,RSL,5500,50,1200,1930,2,1,1,,,,,Detached,1,No,Yes
+333 Crawl St,Seattle,WA,98108,123456-0012,Kim,Owner,Single Family,NR2,7000,50,2000,1965,3,2,1,200,,Crawl,,,1,No,No
+444 Duplex Dr,Seattle,WA,98125,123456-0013,Lee,Owner,Duplex,NR3,9000,60,2400,1950,4,2,2,,,,,,2,No,No
+555 Retail Rd,Seattle,WA,98101,123456-0014,Max,Owner,Retail,NC1-55,6000,50,4000,1980,,,,,,,,,,No,No
+666 Room To Grow,Seattle,WA,98117,123456-0015,Nia,Owner,Single Family,NR1,9000,60,3200,1920,3,1,1,,,Partial,,,1,No,No
