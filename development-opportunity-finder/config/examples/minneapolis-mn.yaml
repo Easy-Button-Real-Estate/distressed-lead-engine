@@ -1,0 +1,111 @@
+# EXAMPLE — verify before you use this.
+# Minneapolis, Hennepin County, MN. ADU rules below are from the zoning code
+# (Chapter 550, Article IX). The built-form overlay (Interior 1, Interior 2,
+# and so on) sets lot size and height and often is NOT the same column as
+# zoning. Lot-split minimums are left off until you have that overlay.
+# Not a zoning determination.
+# Checked: 2026-10-21.
+
+kind: example
+checked: 2026-10-21
+
+market:
+  name: "Minneapolis, MN (example — verify)"
+  city: Minneapolis
+  county: Hennepin
+  state: MN
+  notes: >
+    Urban Neighborhood districts UN1, UN2, and UN3 are the codes on this
+    file. Residential mixed-use districts can allow the same ADU. Add those
+    codes after you read one real row off the city's zoning map. One ADU
+    per lot, and only beside a single-family or two-family house.
+
+enabled:
+  - adu
+  - middle_housing
+  - basement
+  - garage_conversion
+  - underbuilt
+  - add_bed_bath
+  - attic_or_second_story
+  - corner_or_alley
+  # lot_split is off. Chapter 540 lot size depends on the built-form overlay.
+  # Turn it on after you set min_parent_lot_sqft from that overlay.
+
+zoning:
+  adu: ["UN1", "UN2", "UN3"]
+  dadu: []
+  lot_split: ["UN1", "UN2", "UN3"]
+  middle_housing: ["UN1", "UN2", "UN3"]
+  garage_conversion: []
+  second_story: []
+
+rules:
+  adu:
+    # 550.1420-.1460 do not set a minimum lot size for an ADU.
+    min_lot_sqft: null
+    min_lot_width_ft: null
+    max_adu_sqft: 1300        # detached: 1,300 sqft or 16% of the lot, whichever is greater, never over 1,600, and not bigger than the house
+    max_units_on_lot: null
+    max_adus: 1
+    allow_on_vacant: false
+    setbacks_ft:
+      front: null             # a detached ADU has to sit behind the house
+      side: 3
+      rear: 3
+    max_lot_coverage_pct: null
+    verify: "One ADU per lot, only with a single-family or two-family house, and it cannot be split onto its own tax parcel. Some internal ADUs still need the owner to live there."
+
+  lot_split:
+    min_lot_sqft: null
+    min_parent_lot_sqft: null
+    min_lot_width_ft: null
+    max_lots: 2
+    verify: "Not used while lot_split is turned off."
+
+  middle_housing:
+    # 1 to 3 units are the Urban Neighborhood pattern. The lot-area minimum
+    # depends on the built-form overlay, which this file does not guess.
+    max_units: 3
+    min_lot_sqft: null
+    min_lot_sqft_per_unit: null
+    min_lot_width_ft: null
+    skip_if_zoning_contains: []
+    verify: "Confirm the built-form overlay (Interior 1 / 2 / 3 or a Corridor). That overlay, not the UN code alone, sets lot area, width, height, and FAR."
+
+  basement:
+    min_basement_sqft: 400
+    max_finished_share: 0.50
+    verify: "Finishing a basement is a building-code project (egress, ceiling height), separate from the ADU rules."
+
+  garage_conversion:
+    min_garage_sqft: 240
+    min_garage_spaces: 1
+    verify: "A unit over a detached garage is a detached ADU: 21 ft height limit unless you get a variance, and the footprint cap includes the garage."
+
+  underbuilt:
+    max_far: 0.30
+    min_lot_sqft: 4000
+    verify: "0.30 is your screen. The real FAR is in Chapter 540 for that built-form overlay."
+
+  add_bed_bath:
+    min_sqft_per_bedroom: 700
+    min_beds_for_bath_check: 3
+    max_baths_for_mismatch: 1
+
+  attic_or_second_story:
+    max_stories: 1
+    min_lot_sqft: 4000
+    min_house_sqft: 800
+    verify: "Single- and two-family height in many interior overlays is 2.5 stories. Confirm the overlay before you plan a second story."
+
+  corner_or_alley:
+    only_with_another_opportunity: false
+    verify: "Minneapolis lot width is sometimes easier with alley access (the draft lot tables used 38 ft with an alley and 50 ft without). Confirm the current table for your overlay."
+
+sources:
+  - "Minneapolis zoning code 550.1420 through 550.1460 (where an ADU is allowed, one per lot, 800 sqft attached/internal, 1,300 sqft detached cap, 3 ft side and rear): https://www.zoneomics.com/code/minneapolis-MN/chapter_7"
+  - "City ADU page (detached ADU handout): https://www.minneapolismn.gov/business-services/licenses-permits-inspections/construction-permits/building-requirements/adus/"
+  - "Built form overlay handbook (lot size and height live here, not in the UN code): https://www.minneapolismn.gov/business-services/planning-zoning/applications-handouts/handouts/built-form-overlay/"
+  - "District names UN1 / UN2 / UN3: Minneapolis 2040 land use handbook, primary zoning map: https://minneapolis2040.com/media/2017/land-use-handbook-11-13-23.pdf"
+  - "Uncertain: the lot-area number for a 1-3 unit building. It depends on the built-form overlay and was not hard-coded. Residential mixed-use district abbreviations were not added. Add them after you check a parcel."
