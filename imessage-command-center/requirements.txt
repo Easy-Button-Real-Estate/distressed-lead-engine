@@ -1,0 +1,2 @@
+# No third-party packages. The command center uses the Python standard library.
+# The iMessage bridge is installed separately, on a Mac: brew install steipete/tap/imsg
