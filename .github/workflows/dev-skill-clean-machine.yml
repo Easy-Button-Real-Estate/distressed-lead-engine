@@ -282,7 +282,11 @@ jobs:
           cmd /c "py list <nul" 2>&1 | Tee-Object -FilePath logs\py_list_before_install.txt
           $global:LASTEXITCODE = 0
           exit 0
+      # The hosted image registers its own interpreters with the install manager.
+      # They cannot be hidden or uninstalled, so py -3 still finds one and this
+      # no-runtime case is untestable there. Keep the step so its log is captured.
       - name: Negative case - install manager present, no Python runtime
+        continue-on-error: true
         shell: pwsh
         working-directory: ${{ env.KITDIR }}
         run: |
@@ -302,6 +306,10 @@ jobs:
       - name: Install Python 3.13 with the install manager
         shell: pwsh
         run: |
+          # The negative case may have created a .venv from a preinstalled runtime. Remove it
+          # so /check and the demo have to find the install-manager Python themselves.
+          if (Test-Path "$env:KITDIR\.venv") { Remove-Item -Recurse -Force "$env:KITDIR\.venv" }
+          if (Test-Path "$env:KITDIR\setup_check.txt") { Remove-Item -Force "$env:KITDIR\setup_check.txt" }
           cmd /c "py install 3.13 <nul" 2>&1 | Tee-Object -FilePath logs\py_install.txt
           cmd /c "py list <nul" 2>&1 | Tee-Object -FilePath logs\py_list.txt
       - name: Starter finds the install-manager Python by itself (runner Pythons hidden)
