@@ -1,0 +1,8 @@
+{
+  "_note": "GENERIC FORMAT, CHECK YOUR PROVIDER'S TEMPLATE. Upload layouts per provider. Column names follow each provider's commonly used upload template as of Nov 2026. Uploaders usually let you map columns, and extra columns (Owner Key, APN) are kept or ignored. If the provider's current template differs, map the columns in their uploader or edit this file. Vacant land often has no property street address; providers then match on owner name + mailing address.",
+  "generic": ["First Name", "Last Name", "Owner Full Name", "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip", "Property Address", "Property City", "Property State", "Property Zip", "APN", "Owner Key"],
+  "batchskiptracing": ["First Name", "Last Name", "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip", "Property Address", "Property City", "Property State", "Property Zip", "Owner Key", "APN"],
+  "propstream": ["Owner First Name", "Owner Last Name", "Property Address", "Property City", "Property State", "Property Zip", "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip", "Owner Key", "APN"],
+  "dealmachine": ["Owner Name", "Property Address", "Property City", "Property State", "Property Zip", "Mailing Address", "Mailing City", "Mailing State", "Mailing Zip", "Owner Key", "APN"],
+  "reisift": ["First Name", "Last Name", "Property Street Address", "Property City", "Property State", "Property Zip Code", "Mailing Street Address", "Mailing City", "Mailing State", "Mailing Zip Code", "Owner Key", "APN"]
+}

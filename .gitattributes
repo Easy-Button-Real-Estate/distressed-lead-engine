@@ -1,0 +1,7 @@
+# Development Opportunity Finder: keep starter line endings correct in git checkouts.
+# (tools/build_zip.py also forces them when it builds the zip.)
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+*.command text eol=lf
+*.sh      text eol=lf
+*.py      text eol=lf

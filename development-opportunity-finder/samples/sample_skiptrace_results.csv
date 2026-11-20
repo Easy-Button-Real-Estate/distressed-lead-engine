@@ -1,0 +1,39 @@
+Owner Key,APN,First Name,Last Name,Mailing Address,Mailing Zip,Phone 1,Phone 1 Type,Phone 1 DNC,Phone 2,Phone 2 Type,Phone 2 DNC,Email 1,Litigator
+sampleowner01|575mailboxln|43814,SAMPLE-001,Owner,Sample,575 Mailbox Ln,43814,(614) 555-0101,Mobile,N,,,,owner01@example.com,N
+sampleowner03etal|333mailboxln|43000,SAMPLE-003,Owner,Sample,333 Mailbox Ln,43000,(614) 555-0102,Mobile,N,(614) 555-0152,Landline,N,owner02@example.com,N
+sampleowner04etal|433mailboxln|43000,SAMPLE-004,Owner,Sample,433 Mailbox Ln,43000,(614) 555-0103,Landline,Y,,,,owner03@example.com,N
+sampleowner06|774mailboxln|50857,SAMPLE-006,Owner,Sample,774 Mailbox Ln,50857,(614) 555-0104,Mobile,N,(614) 555-0154,Landline,Y,owner04@example.com,N
+stateofohiosample|804mailboxln|43000,SAMPLE-007,Of,State,804 Mailbox Ln,43000,(614) 555-0105,Landline,N,(614) 555-0155,Mobile,N,owner05@example.com,N
+sampleowner08|949mailboxln|31798,SAMPLE-008,Owner,Sample,949 Mailbox Ln,31798,,,,,,,,
+sampleowner11|650mailboxln|43000,SAMPLE-011,Owner,Sample,650 Mailbox Ln,43000,(614) 555-0107,Mobile,N,,,,owner07@example.com,Y
+sampleowner13|991mailboxln|56025,SAMPLE-013,Owner,Sample,991 Mailbox Ln,56025,(614) 555-0108,Mobile,N,(614) 555-0158,Landline,N,owner08@example.com,N
+sampleowner14etal|737mailboxln|57739,SAMPLE-014,Owner,Sample,737 Mailbox Ln,57739,(614) 555-0109,Landline,Y,,,,owner09@example.com,N
+sampleowner16etal|705mailboxln|43000,SAMPLE-016,Owner,Sample,705 Mailbox Ln,43000,(614) 555-0110,Mobile,N,(614) 555-0160,Landline,Y,owner10@example.com,N
+sampleowner18etal|21mailboxln|72518,SAMPLE-018,Owner,Sample,21 Mailbox Ln,72518,(614) 555-0111,Landline,N,(614) 555-0161,Mobile,N,owner11@example.com,N
+sampleowner20|971mailboxln|43000,SAMPLE-020,Owner,Sample,971 Mailbox Ln,43000,,,,,,,,
+sampleowner21|439mailboxln|45709,SAMPLE-021,Owner,Sample,439 Mailbox Ln,45709,(614) 555-0113,Mobile,N,,,,owner13@example.com,N
+sampleowner23etal|596mailboxln|44511,SAMPLE-023,Owner,Sample,596 Mailbox Ln,44511,(614) 555-0114,Mobile,N,(614) 555-0164,Landline,N,owner14@example.com,N
+sampleowner25|572mailboxln|89471,SAMPLE-025,Owner,Sample,572 Mailbox Ln,89471,(614) 555-0115,Landline,Y,,,,owner15@example.com,N
+sampleowner26etal|881mailboxln|43000,SAMPLE-026,Owner,Sample,881 Mailbox Ln,43000,(614) 555-0116,Mobile,N,(614) 555-0166,Landline,Y,owner16@example.com,N
+sampleowner27|613mailboxln|43000,SAMPLE-027,Owner,Sample,613 Mailbox Ln,43000,(614) 555-0117,Landline,N,(614) 555-0167,Mobile,N,owner17@example.com,N
+sampleowner28etal|508mailboxln|43000,SAMPLE-028,Owner,Sample,508 Mailbox Ln,43000,,,,,,,,
+sampleowner29etal|497mailboxln|13783,SAMPLE-029,Owner,Sample,497 Mailbox Ln,13783,(614) 555-0119,Mobile,N,,,,owner19@example.com,N
+sampleowner30|283mailboxln|54548,SAMPLE-030,Owner,Sample,283 Mailbox Ln,54548,(614) 555-0120,Mobile,N,(614) 555-0170,Landline,N,owner20@example.com,N
+sampleowner36|391mailboxln|45615,SAMPLE-036,Owner,Sample,391 Mailbox Ln,45615,(614) 555-0121,Landline,Y,,,,owner21@example.com,N
+sampleowner37etal|973mailboxln|86983,SAMPLE-037,Owner,Sample,973 Mailbox Ln,86983,(614) 555-0122,Mobile,N,(614) 555-0172,Landline,Y,owner22@example.com,N
+sampleowner38|52mailboxln|43000,SAMPLE-038,Owner,Sample,52 Mailbox Ln,43000,(614) 555-0123,Landline,N,(614) 555-0173,Mobile,N,owner23@example.com,N
+sampleowner39|179mailboxln|16868,SAMPLE-039,Owner,Sample,179 Mailbox Ln,16868,,,,,,,,
+sampleowner40|730mailboxln|44331,SAMPLE-040,Owner,Sample,730 Mailbox Ln,44331,(614) 555-0125,Mobile,N,,,,owner25@example.com,N
+sampleowner41|443mailboxln|43000,SAMPLE-041,Owner,Sample,443 Mailbox Ln,43000,(614) 555-0126,Mobile,N,(614) 555-0176,Landline,N,owner26@example.com,N
+sampleowner42|377mailboxln|46512,SAMPLE-042,Owner,Sample,377 Mailbox Ln,46512,(614) 555-0127,Landline,Y,,,,owner27@example.com,N
+sampleowner45etal|942mailboxln|21551,SAMPLE-045,Owner,Sample,942 Mailbox Ln,21551,(614) 555-0128,Mobile,N,(614) 555-0178,Landline,Y,owner28@example.com,N
+sampleowner47|568mailboxln|43000,SAMPLE-047,Owner,Sample,568 Mailbox Ln,43000,(614) 555-0129,Landline,N,(614) 555-0179,Mobile,N,owner29@example.com,N
+sampleowner49etal|687mailboxln|43000,SAMPLE-049,Owner,Sample,687 Mailbox Ln,43000,,,,,,,,
+sampleowner50etal|449mailboxln|63852,SAMPLE-050,Owner,Sample,449 Mailbox Ln,63852,(614) 555-0131,Mobile,N,,,,owner31@example.com,N
+sampleowner51etal|867mailboxln|47363,SAMPLE-051,Owner,Sample,867 Mailbox Ln,47363,(614) 555-0132,Mobile,N,(614) 555-0182,Landline,N,owner32@example.com,N
+sampleowner52etal|481mailboxln|90654,SAMPLE-052,Owner,Sample,481 Mailbox Ln,90654,(614) 555-0133,Landline,Y,,,,owner33@example.com,N
+sampleowner54etal|476mailboxln|92802,SAMPLE-054,Owner,Sample,476 Mailbox Ln,92802,(614) 555-0134,Mobile,N,(614) 555-0184,Landline,Y,owner34@example.com,N
+sampleowner55etal|510mailboxln|43000,SAMPLE-055,Owner,Sample,510 Mailbox Ln,43000,(614) 555-0135,Landline,N,(614) 555-0185,Mobile,N,owner35@example.com,N
+sampleowner57etal|191mailboxln|43000,SAMPLE-057,Owner,Sample,191 Mailbox Ln,43000,,,,,,,,
+sampleowner58etal|727mailboxln|57381,SAMPLE-058,Owner,Sample,727 Mailbox Ln,57381,(614) 555-0137,Mobile,N,,,,owner37@example.com,N
+sampleowner60|158mailboxln|43000,SAMPLE-060,Owner,Sample,158 Mailbox Ln,43000,(614) 555-0138,Mobile,N,(614) 555-0188,Landline,N,owner38@example.com,N

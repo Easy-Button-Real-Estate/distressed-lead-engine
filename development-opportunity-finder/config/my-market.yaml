@@ -14,7 +14,7 @@ checked:                    # Claude puts the date it looked the code up.
 
 market:
   name: "My market"         # shows up at the top of the summary
-  city: ""                  # "Austin" — leave blank if this file is the whole county
+  city: ""                  # "Austin"  -  leave blank if this file is the whole county
   county: ""                # "Travis"
   state: ""                 # two letters, "TX"
   notes: ""                 # anything you want repeated on the report

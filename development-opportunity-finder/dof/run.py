@@ -205,7 +205,7 @@ def render_summary(result, cfg, csv_path, config_path):
     for rank, item in enumerate(result["flagged"], start=1):
         prop = item["prop"]
         where = ", ".join(p for p in [prop.get("address"), prop.get("city"), prop.get("state")] if p)
-        lines.append(f"{rank}. {where} — score {item['score']} — confidence {item['confidence']}")
+        lines.append(f"{rank}. {where}  -  score {item['score']}  -  confidence {item['confidence']}")
         lines.append("   Opportunities: " + "; ".join(h["title"] for h in item["hits"]))
         for hit in item["hits"]:
             lines.append(f"   - {hit['title']} ({hit['confidence']}): {hit['why']}")

@@ -1,4 +1,4 @@
-# EXAMPLE — verify before you use this.
+# EXAMPLE  -  verify before you use this.
 # Minneapolis, Hennepin County, MN. ADU rules below are from the zoning code
 # (Chapter 550, Article IX). The built-form overlay (Interior 1, Interior 2,
 # and so on) sets lot size and height and often is NOT the same column as
@@ -10,7 +10,7 @@ kind: example
 checked: 2026-10-21
 
 market:
-  name: "Minneapolis, MN (example — verify)"
+  name: "Minneapolis, MN (example  -  verify)"
   city: Minneapolis
   county: Hennepin
   state: MN

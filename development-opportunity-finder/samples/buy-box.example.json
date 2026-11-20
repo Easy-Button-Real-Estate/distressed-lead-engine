@@ -1,0 +1,14 @@
+{
+  "_how": "Start from a preset with --use-case, then override only what you need. Weights are relative points; they are rescaled to 100.",
+  "label": "Light-industrial / flex site, 20-120 ac, near an interstate on-ramp",
+  "acres": {"min": 20, "max": 120, "ideal_min": 30, "ideal_max": 80},
+  "max_price": 2500000,
+  "max_flood_pct": 15,
+  "max_substation_mi": 8,
+  "require_access": true,
+  "min_frontage_ft": 200,
+  "zoning_keywords": ["i-1", "light industrial", "m-1", "business park", "commercial"],
+  "zoning_exclude": ["conservation", "open space", "cemetery"],
+  "distances": {"highway": {"ideal": 1, "limit": 8}},
+  "weights": {"highway": 30, "power": 10}
+}

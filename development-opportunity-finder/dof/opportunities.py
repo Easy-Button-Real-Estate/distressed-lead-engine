@@ -6,9 +6,9 @@ bottom of this file, then list its id under `enabled:` in your YAML.
 
 Confidence means how complete the spreadsheet was, not whether the city
 will approve the project:
-  high   — the gates you set were in the file and passed
-  medium — one fact was missing or only implied (a garage type with no size)
-  low    — zoning was blank, or you have not put zoning codes in the config
+  high    -  the gates you set were in the file and passed
+  medium  -  one fact was missing or only implied (a garage type with no size)
+  low     -  zoning was blank, or you have not put zoning codes in the config
 """
 
 import re
@@ -68,7 +68,14 @@ def codes_match(value, allowed):
     allowed_n = norm_code(allowed)
     if not allowed_n or value is None:
         return False, ""
+    parts = []
     for part in re.split(r"[/,;|]+", str(value)):
+        parts.append(part)
+        # "R-1 Single Family" (code + description, common on county GIS): also try the code alone
+        words = part.split()
+        if len(words) > 1:
+            parts.append(words[0])
+    for part in parts:
         prop = norm_code(part)
         if not prop:
             continue
@@ -164,7 +171,7 @@ def zoning_status(cfg, prop, use):
                 overlays.append(overlay)
             note = f"zoning {value} matches {code}"
             if overlays:
-                note += f" (trailing overlay letter {overlays[0]} was ignored — confirm it does not block this)"
+                note += f" (trailing overlay letter {overlays[0]} was ignored  -  confirm it does not block this)"
             return "yes", note
     return "no", f"zoning {value} is not on your list for this use"
 
@@ -380,7 +387,7 @@ def lot_split(prop, cfg):
     return make_hit("lot_split", "Lot split", confidence, why, join_verify(verify, rules), 1.15)
 
 
-@opportunity(id="middle_housing", title="Middle housing (2–4 units)",
+@opportunity(id="middle_housing", title="Middle housing (2-4 units)",
              needs_any=("zoning", "lot_sqft"), weight=1.1)
 def middle_housing(prop, cfg):
     if _blocked(prop, allow_vacant=True):
@@ -421,7 +428,7 @@ def middle_housing(prop, cfg):
     verify = "Confirm the unit count the zone actually allows, parking, and any affordability or transit bonus."
     if overlay:
         verify += f" Overlay letter {overlay} was ignored."
-    return make_hit("middle_housing", "Middle housing (2–4 units)", confidence, why, join_verify(verify, rules), 1.1)
+    return make_hit("middle_housing", "Middle housing (2-4 units)", confidence, why, join_verify(verify, rules), 1.1)
 
 
 @opportunity(

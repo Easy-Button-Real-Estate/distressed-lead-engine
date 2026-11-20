@@ -1,0 +1,57 @@
+{
+  "_note": "Weights are points out of 100. Distances are miles: full points at or under 'ideal', zero at or beyond 'limit'. Copy a preset into your own buy-box JSON to change anything.",
+  "general_land": {
+    "label": "General land / flip",
+    "weights": {"access": 20, "wetlands": 15, "flood": 15, "slope": 10, "valuation": 25, "size": 15},
+    "acres": {"min": 1, "max": 200, "ideal_min": 2, "ideal_max": 40},
+    "zoning_keywords": ["residential", "agricultural", "rural", "vacant"],
+    "min_frontage_ft": 50
+  },
+  "single_family": {
+    "label": "Single-family lots / subdivision",
+    "weights": {"access": 15, "size": 10, "zoning": 15, "flood": 12, "wetlands": 10, "slope": 13, "utilities": 10, "valuation": 15},
+    "acres": {"min": 0.15, "max": 150, "ideal_min": 1, "ideal_max": 60},
+    "zoning_keywords": ["residential", "r-1", "r1", "r-2", "r2", "rs", "sfr", "single family", "pud", "planned unit"],
+    "min_frontage_ft": 60,
+    "max_slope_pct": 15
+  },
+  "industrial": {
+    "label": "Industrial / manufacturing",
+    "weights": {"access": 10, "highway": 20, "power": 12, "rail": 5, "size": 10, "zoning": 15, "flood": 8, "wetlands": 5, "slope": 7, "valuation": 8},
+    "acres": {"min": 5, "max": 500, "ideal_min": 15, "ideal_max": 150},
+    "distances": {"highway": {"ideal": 2, "limit": 12}, "substation": {"ideal": 2, "limit": 10}, "transmission_line": {"ideal": 1, "limit": 6}, "rail": {"ideal": 1, "limit": 8}},
+    "zoning_keywords": ["industrial", "i-1", "i1", "i-2", "i2", "m-1", "m1", "m-2", "m2", "manufactur", "light ind", "heavy ind", "business park"],
+    "min_frontage_ft": 150,
+    "max_slope_pct": 8
+  },
+  "warehouse": {
+    "label": "Warehouse / logistics",
+    "weights": {"access": 10, "highway": 25, "rail": 5, "power": 5, "size": 12, "zoning": 13, "flood": 8, "wetlands": 5, "slope": 9, "valuation": 8},
+    "acres": {"min": 5, "max": 300, "ideal_min": 20, "ideal_max": 120},
+    "distances": {"highway": {"ideal": 1, "limit": 10}, "substation": {"ideal": 3, "limit": 12}, "transmission_line": {"ideal": 2, "limit": 8}, "rail": {"ideal": 1, "limit": 8}},
+    "zoning_keywords": ["industrial", "i-1", "i1", "i-2", "m-1", "m1", "warehouse", "distribution", "logistics", "commercial", "business park"],
+    "min_frontage_ft": 200,
+    "max_slope_pct": 5
+  },
+  "data_center": {
+    "label": "Data center",
+    "weights": {"power": 30, "highway": 8, "access": 7, "size": 12, "zoning": 10, "flood": 10, "wetlands": 5, "slope": 6, "utilities": 7, "valuation": 5},
+    "acres": {"min": 10, "max": 1000, "ideal_min": 40, "ideal_max": 400},
+    "distances": {"highway": {"ideal": 3, "limit": 20}, "substation": {"ideal": 1, "limit": 8}, "transmission_line": {"ideal": 0.5, "limit": 4}, "rail": {"ideal": 5, "limit": 30}},
+    "power_mix": {"substation": 0.6, "transmission_line": 0.4},
+    "zoning_keywords": ["industrial", "i-1", "i1", "i-2", "m-1", "m1", "technology", "tech", "data", "business park", "employment"],
+    "min_frontage_ft": 200,
+    "max_slope_pct": 6,
+    "max_flood_pct": 10
+  },
+  "solar": {
+    "label": "Solar farm",
+    "weights": {"power": 25, "size": 20, "slope": 15, "flood": 8, "wetlands": 7, "access": 5, "zoning": 10, "valuation": 10},
+    "acres": {"min": 20, "max": 3000, "ideal_min": 60, "ideal_max": 1500},
+    "distances": {"substation": {"ideal": 2, "limit": 12}, "transmission_line": {"ideal": 0.5, "limit": 5}},
+    "power_mix": {"substation": 0.4, "transmission_line": 0.6},
+    "zoning_keywords": ["agricultural", "ag", "rural", "a-1", "a1", "farm", "industrial", "vacant"],
+    "min_frontage_ft": 30,
+    "max_slope_pct": 8
+  }
+}

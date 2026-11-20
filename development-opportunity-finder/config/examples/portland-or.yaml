@@ -1,4 +1,4 @@
-# EXAMPLE — verify before you use this.
+# EXAMPLE  -  verify before you use this.
 # Portland, Multnomah County, OR. Minimums change by zone, so they live in
 # the zones table instead of one citywide number. The "z" overlay (constrained
 # sites) is skipped for middle housing and lot splits. Not a zoning determination.
@@ -8,7 +8,7 @@ kind: example
 checked: 2026-10-21
 
 market:
-  name: "Portland, OR (example — verify)"
+  name: "Portland, OR (example  -  verify)"
   city: Portland
   county: Multnomah
   state: OR

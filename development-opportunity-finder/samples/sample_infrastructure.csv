@@ -1,0 +1,111 @@
+layer,name,voltage,ref,lat,lon
+major_highway,Sample Interstate,,I-SAMPLE,39.8,-82.8
+major_highway,Sample Interstate,,I-SAMPLE,39.81,-82.797667
+major_highway,Sample Interstate,,I-SAMPLE,39.82,-82.795333
+major_highway,Sample Interstate,,I-SAMPLE,39.83,-82.793
+major_highway,Sample Interstate,,I-SAMPLE,39.84,-82.790667
+major_highway,Sample Interstate,,I-SAMPLE,39.85,-82.788333
+major_highway,Sample Interstate,,I-SAMPLE,39.86,-82.786
+major_highway,Sample Interstate,,I-SAMPLE,39.87,-82.783667
+major_highway,Sample Interstate,,I-SAMPLE,39.88,-82.781333
+major_highway,Sample Interstate,,I-SAMPLE,39.89,-82.779
+major_highway,Sample Interstate,,I-SAMPLE,39.9,-82.776667
+major_highway,Sample Interstate,,I-SAMPLE,39.91,-82.774333
+major_highway,Sample Interstate,,I-SAMPLE,39.92,-82.772
+major_highway,Sample Interstate,,I-SAMPLE,39.93,-82.769667
+major_highway,Sample Interstate,,I-SAMPLE,39.94,-82.767333
+major_highway,Sample Interstate,,I-SAMPLE,39.95,-82.765
+major_highway,Sample Interstate,,I-SAMPLE,39.96,-82.762667
+major_highway,Sample Interstate,,I-SAMPLE,39.97,-82.760333
+major_highway,Sample Interstate,,I-SAMPLE,39.98,-82.758
+major_highway,Sample Interstate,,I-SAMPLE,39.99,-82.755667
+major_highway,Sample Interstate,,I-SAMPLE,40.0,-82.753333
+major_highway,Sample Interstate,,I-SAMPLE,40.01,-82.751
+major_highway,Sample Interstate,,I-SAMPLE,40.02,-82.748667
+major_highway,Sample Interstate,,I-SAMPLE,40.03,-82.746333
+major_highway,Sample Interstate,,I-SAMPLE,40.04,-82.744
+major_highway,Sample Interstate,,I-SAMPLE,40.05,-82.741667
+major_highway,Sample Interstate,,I-SAMPLE,40.06,-82.739333
+major_highway,Sample Interstate,,I-SAMPLE,40.07,-82.737
+major_highway,Sample Interstate,,I-SAMPLE,40.08,-82.734667
+major_highway,Sample Interstate,,I-SAMPLE,40.09,-82.732333
+major_highway,Sample Interstate,,I-SAMPLE,40.1,-82.73
+highway_interchange,Sample Exit 1,,,39.87,-82.785
+highway_interchange,Sample Exit 2,,,39.95,-82.767
+highway_interchange,Sample Exit 3,,,40.04,-82.746
+transmission_line,Sample 345kV Line,345000,,40.07,-82.95
+transmission_line,Sample 345kV Line,345000,,40.065854,-82.940244
+transmission_line,Sample 345kV Line,345000,,40.061707,-82.930488
+transmission_line,Sample 345kV Line,345000,,40.057561,-82.920732
+transmission_line,Sample 345kV Line,345000,,40.053415,-82.910976
+transmission_line,Sample 345kV Line,345000,,40.049268,-82.90122
+transmission_line,Sample 345kV Line,345000,,40.045122,-82.891463
+transmission_line,Sample 345kV Line,345000,,40.040976,-82.881707
+transmission_line,Sample 345kV Line,345000,,40.036829,-82.871951
+transmission_line,Sample 345kV Line,345000,,40.032683,-82.862195
+transmission_line,Sample 345kV Line,345000,,40.028537,-82.852439
+transmission_line,Sample 345kV Line,345000,,40.02439,-82.842683
+transmission_line,Sample 345kV Line,345000,,40.020244,-82.832927
+transmission_line,Sample 345kV Line,345000,,40.016098,-82.823171
+transmission_line,Sample 345kV Line,345000,,40.011951,-82.813415
+transmission_line,Sample 345kV Line,345000,,40.007805,-82.803659
+transmission_line,Sample 345kV Line,345000,,40.003659,-82.793902
+transmission_line,Sample 345kV Line,345000,,39.999512,-82.784146
+transmission_line,Sample 345kV Line,345000,,39.995366,-82.77439
+transmission_line,Sample 345kV Line,345000,,39.99122,-82.764634
+transmission_line,Sample 345kV Line,345000,,39.987073,-82.754878
+transmission_line,Sample 345kV Line,345000,,39.982927,-82.745122
+transmission_line,Sample 345kV Line,345000,,39.97878,-82.735366
+transmission_line,Sample 345kV Line,345000,,39.974634,-82.72561
+transmission_line,Sample 345kV Line,345000,,39.970488,-82.715854
+transmission_line,Sample 345kV Line,345000,,39.966341,-82.706098
+transmission_line,Sample 345kV Line,345000,,39.962195,-82.696341
+transmission_line,Sample 345kV Line,345000,,39.958049,-82.686585
+transmission_line,Sample 345kV Line,345000,,39.953902,-82.676829
+transmission_line,Sample 345kV Line,345000,,39.949756,-82.667073
+transmission_line,Sample 345kV Line,345000,,39.94561,-82.657317
+transmission_line,Sample 345kV Line,345000,,39.941463,-82.647561
+transmission_line,Sample 345kV Line,345000,,39.937317,-82.637805
+transmission_line,Sample 345kV Line,345000,,39.933171,-82.628049
+transmission_line,Sample 345kV Line,345000,,39.929024,-82.618293
+transmission_line,Sample 345kV Line,345000,,39.924878,-82.608537
+transmission_line,Sample 345kV Line,345000,,39.920732,-82.59878
+transmission_line,Sample 345kV Line,345000,,39.916585,-82.589024
+transmission_line,Sample 345kV Line,345000,,39.912439,-82.579268
+transmission_line,Sample 345kV Line,345000,,39.908293,-82.569512
+transmission_line,Sample 345kV Line,345000,,39.904146,-82.559756
+transmission_line,Sample 345kV Line,345000,,39.9,-82.55
+substation,Sample Substation A,345000;138000,,40.01,-82.85
+substation,Sample Substation B,345000;138000,,39.92,-82.63
+rail,Sample Railroad,,,39.8,-82.65
+rail,Sample Railroad,,,39.81,-82.651667
+rail,Sample Railroad,,,39.82,-82.653333
+rail,Sample Railroad,,,39.83,-82.655
+rail,Sample Railroad,,,39.84,-82.656667
+rail,Sample Railroad,,,39.85,-82.658333
+rail,Sample Railroad,,,39.86,-82.66
+rail,Sample Railroad,,,39.87,-82.661667
+rail,Sample Railroad,,,39.88,-82.663333
+rail,Sample Railroad,,,39.89,-82.665
+rail,Sample Railroad,,,39.9,-82.666667
+rail,Sample Railroad,,,39.91,-82.668333
+rail,Sample Railroad,,,39.92,-82.67
+rail,Sample Railroad,,,39.93,-82.671667
+rail,Sample Railroad,,,39.94,-82.673333
+rail,Sample Railroad,,,39.95,-82.675
+rail,Sample Railroad,,,39.96,-82.676667
+rail,Sample Railroad,,,39.97,-82.678333
+rail,Sample Railroad,,,39.98,-82.68
+rail,Sample Railroad,,,39.99,-82.681667
+rail,Sample Railroad,,,40.0,-82.683333
+rail,Sample Railroad,,,40.01,-82.685
+rail,Sample Railroad,,,40.02,-82.686667
+rail,Sample Railroad,,,40.03,-82.688333
+rail,Sample Railroad,,,40.04,-82.69
+rail,Sample Railroad,,,40.05,-82.691667
+rail,Sample Railroad,,,40.06,-82.693333
+rail,Sample Railroad,,,40.07,-82.695
+rail,Sample Railroad,,,40.08,-82.696667
+rail,Sample Railroad,,,40.09,-82.698333
+rail,Sample Railroad,,,40.1,-82.7
+water_plant,Sample Water Works,,,39.970000000000006,-82.72

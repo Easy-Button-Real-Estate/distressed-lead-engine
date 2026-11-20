@@ -1,0 +1,273 @@
+# Development Opportunity Finder: clean-machine check.
+# Repo layout: this file at .github/workflows/, the kit under development-opportunity-finder/.
+# 1) build: build the zip ONCE (tools/build_zip.py), record its SHA-256, run the tests in repo layout, upload the zip.
+# 2) clean-machine: macos-latest and windows-latest x Python 3.10 / 3.13 / 3.14. Each job downloads the same zip,
+#    verifies the SHA-256, extracts it with the OS's own tool into a folder named "EBRE Land (1)", runs the negative
+#    cases (temp folder, path inside a .zip, no Python), the starter's --check, both test suites and the demo.
+# 3) windows-pymanager: installs Python with the Python install manager (winget, MSI fallback), hides the runner's
+#    preinstalled Pythons, and runs the Windows starter so it has to find that Python itself.
+# setup_check.txt and every log are uploaded as artifacts. Nothing is deployed or published.
+name: dev-skill-clean-machine
+on:
+  workflow_dispatch:
+  push:
+    branches: ["dev-skill/round5-clean-machine"]
+permissions:
+  contents: read
+env:
+  KIT: development-opportunity-finder
+  ZIP: development-opportunity-finder.zip
+  PYTHONUTF8: "1"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      sha256: ${{ steps.hash.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build the zip once
+        run: |
+          mkdir -p dist logs
+          python "$KIT/tools/build_zip.py" "$KIT" "dist/$ZIP" | tee logs/build.txt
+      - id: hash
+        name: SHA-256 of the zip
+        run: |
+          cd dist
+          sha256sum "$ZIP" | tee "$ZIP.sha256"
+          echo "sha256=$(cut -d' ' -f1 "$ZIP.sha256")" >> "$GITHUB_OUTPUT"
+      - name: Tests in repo layout (the zip test reads dist/ through DOF_ZIP)
+        env:
+          DOF_ZIP: ${{ github.workspace }}/dist/development-opportunity-finder.zip
+        run: |
+          python -m pip install -q -r "$KIT/requirements.txt"
+          python "$KIT/tests/test_pipeline.py" 2>&1 | tee logs/tests_repo_layout.txt
+          python "$KIT/tests/test_finder.py" 2>&1 | tee -a logs/tests_repo_layout.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kit-zip
+          path: |
+            dist/development-opportunity-finder.zip
+            dist/development-opportunity-finder.zip.sha256
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-build
+          path: logs/
+
+  clean-machine:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+        python: ["3.10", "3.13", "3.14"]
+    runs-on: ${{ matrix.os }}
+    env:
+      EXPECTED_SHA: ${{ needs.build.outputs.sha256 }}
+      KITDIR: ${{ github.workspace }}/EBRE Land (1)/development-opportunity-finder
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kit-zip
+          path: dist
+      - name: Verify SHA-256 (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          got=$(shasum -a 256 "dist/$ZIP" | cut -d' ' -f1)
+          echo "expected $EXPECTED_SHA"; echo "got      $got"
+          [ "$got" = "$EXPECTED_SHA" ]
+      - name: Verify SHA-256 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $got = (Get-FileHash "dist\$env:ZIP" -Algorithm SHA256).Hash.ToLower()
+          "expected $env:EXPECTED_SHA"; "got      $got"
+          if ($got -ne $env:EXPECTED_SHA) { exit 1 }
+      - name: Extract with ditto (Mac, like Finder)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p logs
+          ditto -xk "dist/$ZIP" "EBRE Land (1)"
+          ls -l "$KITDIR/start-mac.command" | tee logs/extract.txt
+          [ -x "$KITDIR/start-mac.command" ]
+      - name: Extract with Expand-Archive (Windows, like Extract All)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force logs | Out-Null
+          Expand-Archive -Path "dist\$env:ZIP" -DestinationPath "EBRE Land (1)"
+          Get-ChildItem $env:KITDIR | Out-File logs\extract.txt
+      - uses: actions/setup-python@v5
+        id: py
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+      - name: Point the starter at the matrix Python
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "EBRE_PYTHON=${pythonLocation}\\python.exe" >> "$GITHUB_ENV"
+          else
+            echo "EBRE_PYTHON=${pythonLocation}/bin/python3" >> "$GITHUB_ENV"
+          fi
+          echo "PY_PYTHON=${{ matrix.python }}" >> "$GITHUB_ENV"
+
+      # ---------- negative cases (before any .venv exists) ----------
+      - name: Negative cases (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set +e
+          tmp="$(mktemp -d)/kit"; cp -R "$KITDIR" "$tmp"
+          out=$("$tmp/start-mac.command" --check 2>&1); code=$?
+          echo "$out" | tee logs/neg_temp.txt
+          [ $code -eq 1 ] && echo "$out" | grep -q "temporary copy or from inside a zip" || { echo "FAIL: temp folder not refused"; exit 1; }
+          z="$GITHUB_WORKSPACE/neg/EBRE Land.zip/$KIT"; mkdir -p "$(dirname "$z")"; cp -R "$KITDIR" "$z"
+          out=$("$z/start-mac.command" --check 2>&1); code=$?
+          echo "$out" | tee logs/neg_zip.txt
+          [ $code -eq 1 ] && echo "$out" | grep -q "temporary copy or from inside a zip" || { echo "FAIL: .zip path not refused"; exit 1; }
+          cd "$KITDIR"
+          out=$(env -i HOME="$HOME" PATH=/usr/bin:/bin EBRE_PATH_ONLY=1 /bin/bash ./start-mac.command --check 2>&1); code=$?
+          echo "$out" | tee "$GITHUB_WORKSPACE/logs/neg_nopython.txt"
+          [ $code -eq 1 ] && echo "$out" | grep -q "Python 3.10 or newer was not found" || { echo "FAIL: no-Python message missing"; exit 1; }
+          [ ! -d .venv ] || { echo "FAIL: .venv created without Python"; exit 1; }
+      - name: Negative cases (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tmp = Join-Path $env:TEMP "dof-neg\$env:KIT"
+          New-Item -ItemType Directory -Force (Split-Path $tmp) | Out-Null
+          Copy-Item -Recurse $env:KITDIR $tmp
+          Push-Location $tmp; $o = cmd /c start-windows.bat /check 2>&1 | Out-String; $c = $LASTEXITCODE; Pop-Location
+          $o | Tee-Object -FilePath logs\neg_temp.txt
+          if ($c -ne 1 -or $o -notmatch "inside the zip or a temporary folder") { "FAIL: temp folder not refused"; exit 1 }
+          $z = Join-Path $env:GITHUB_WORKSPACE "neg\EBRE Land.zip\$env:KIT"
+          New-Item -ItemType Directory -Force (Split-Path $z) | Out-Null
+          Copy-Item -Recurse $env:KITDIR $z
+          Push-Location $z; $o = cmd /c start-windows.bat /check 2>&1 | Out-String; $c = $LASTEXITCODE; Pop-Location
+          $o | Tee-Object -FilePath logs\neg_zip.txt
+          if ($c -ne 1 -or $o -notmatch "inside the zip or a temporary folder") { "FAIL: .zip path not refused"; exit 1 }
+          Push-Location $env:KITDIR
+          $saved = $env:PATH; $env:PATH = "C:\Windows\System32"; $env:EBRE_PATH_ONLY = "1"; Remove-Item Env:EBRE_PYTHON
+          $o = C:\Windows\System32\cmd.exe /c start-windows.bat /check 2>&1 | Out-String; $c = $LASTEXITCODE
+          $env:PATH = $saved; Remove-Item Env:EBRE_PATH_ONLY
+          Pop-Location
+          $o | Tee-Object -FilePath logs\neg_nopython.txt
+          if ($c -ne 1 -or $o -notmatch "Python 3.10 or newer was not found") { "FAIL: no-Python message missing"; exit 1 }
+          if (Test-Path "$env:KITDIR\.venv") { "FAIL: .venv created without Python"; exit 1 }
+
+      # ---------- what a user runs ----------
+      - name: Starter preflight (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          ./start-mac.command --which-python 2>&1 | tee "$GITHUB_WORKSPACE/logs/which_python.txt"
+          ./start-mac.command --check 2>&1 | tee "$GITHUB_WORKSPACE/logs/starter_check.txt"
+          .venv/bin/python -c "import sys; v='%d.%d' % sys.version_info[:2]; print('venv', v); assert v == '${{ matrix.python }}'"
+      - name: Starter preflight (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          cmd /c start-windows.bat /which-python 2>&1 | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\which_python.txt"
+          cmd /c start-windows.bat /check 2>&1 | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\starter_check.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .venv\Scripts\python.exe -c "import sys; v='%d.%d' % sys.version_info[:2]; print('venv', v); assert v == '${{ matrix.python }}'"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Tests from the extracted zip
+        shell: bash
+        working-directory: ${{ env.KITDIR }}
+        env:
+          DOF_ZIP: ${{ github.workspace }}/dist/development-opportunity-finder.zip
+        run: |
+          if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=.venv/Scripts/python.exe; fi
+          "$PY" tests/test_pipeline.py 2>&1 | tee "$GITHUB_WORKSPACE/logs/test_pipeline.txt"
+          "$PY" tests/test_finder.py 2>&1 | tee "$GITHUB_WORKSPACE/logs/test_finder.txt"
+      - name: Demo
+        shell: bash
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=.venv/Scripts/python.exe; fi
+          "$PY" scripts/run_pipeline.py --demo --satellite links 2>&1 | tee "$GITHUB_WORKSPACE/logs/demo.txt"
+          test -f out_demo/START_HERE.md
+          grep -q "not approved contact lists" out_demo/START_HERE.md
+          cp out_demo/START_HERE.md "$GITHUB_WORKSPACE/logs/demo_START_HERE.md"
+      - name: Collect setup_check.txt
+        if: always()
+        shell: bash
+        run: cp "$KITDIR/setup_check.txt" logs/ 2>/dev/null || echo "no setup_check.txt" > logs/setup_check_missing.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-${{ matrix.os }}-py${{ matrix.python }}
+          path: logs/
+
+  windows-pymanager:
+    needs: build
+    runs-on: windows-latest
+    env:
+      EXPECTED_SHA: ${{ needs.build.outputs.sha256 }}
+      KITDIR: ${{ github.workspace }}/EBRE Land (1)/development-opportunity-finder
+      PYTHON_MANAGER_CONFIRM: "false"
+      PYTHON_MANAGER_FIRST_RUN: "false"
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: kit-zip
+          path: dist
+      - name: Verify SHA-256 and extract
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force logs | Out-Null
+          $got = (Get-FileHash "dist\$env:ZIP" -Algorithm SHA256).Hash.ToLower()
+          if ($got -ne $env:EXPECTED_SHA) { "SHA mismatch $got"; exit 1 }
+          Expand-Archive -Path "dist\$env:ZIP" -DestinationPath "EBRE Land (1)"
+      - name: Install the Python install manager (winget, MSI fallback) and Python 3.13
+        shell: pwsh
+        run: |
+          $ok = $false
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget install --id Python.PythonInstallManager --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity 2>&1 | Tee-Object -FilePath logs\winget.txt
+            $ok = ($LASTEXITCODE -eq 0)
+          }
+          if (-not $ok) {
+            "winget unavailable or failed: using the python.org MSI" | Tee-Object -FilePath logs\winget.txt -Append
+            $msi = Join-Path $env:RUNNER_TEMP "python-manager-26.4.msi"
+            Invoke-WebRequest -Uri "https://www.python.org/ftp/python/pymanager/python-manager-26.4.msi" -OutFile $msi -UseBasicParsing
+            if ((Get-FileHash $msi -Algorithm SHA256).Hash -ne "AB8C6B8A484525B000E8E9453FDE0ED6CDEF762DD433622725696A8E1EF2DF4E") { "MSI hash mismatch"; exit 1 }
+            Start-Process msiexec.exe -ArgumentList "/i", "`"$msi`"", "/qn", "/norestart" -Wait
+          }
+          $dirs = @("$env:ProgramFiles\PyManager", "$env:LOCALAPPDATA\Microsoft\WindowsApps", "$env:LOCALAPPDATA\Python\bin")
+          foreach ($d in $dirs) { if (Test-Path $d) { $d | Out-File -Append -Encoding utf8 $env:GITHUB_PATH } }
+          $env:PATH = ($dirs -join ";") + ";" + $env:PATH
+          cmd /c "py install 3.13 <nul" 2>&1 | Tee-Object -FilePath logs\py_install.txt
+          cmd /c "py list <nul" 2>&1 | Tee-Object -FilePath logs\py_list.txt
+      - name: Starter finds the install-manager Python by itself (runner Pythons hidden)
+        shell: pwsh
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "hostedtoolcache" -and $_ -notmatch "\\Python3\d+" }) -join ";"
+          cmd /c start-windows.bat /which-python 2>&1 | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\which_python.txt"
+          cmd /c start-windows.bat /check 2>&1 | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\starter_check.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $base = .venv\Scripts\python.exe -c "import sys; print(sys.base_prefix)"
+          "venv built from: $base" | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\venv_base.txt"
+          if ($base -match "hostedtoolcache") { "FAIL: the starter used the runner's preinstalled Python"; exit 1 }
+          .venv\Scripts\python.exe scripts\run_pipeline.py --demo --satellite links 2>&1 | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\demo.txt"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Collect setup_check.txt
+        if: always()
+        shell: pwsh
+        run: Copy-Item "$env:KITDIR\setup_check.txt" logs\ -ErrorAction SilentlyContinue
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: logs-windows-pymanager
+          path: logs/

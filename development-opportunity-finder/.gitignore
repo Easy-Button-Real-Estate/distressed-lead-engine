@@ -1,4 +1,11 @@
-output/
 __pycache__/
 *.pyc
 .DS_Store
+out/
+output/
+.env
+.venv/
+setup_check.txt
+out_demo/
+suppress/*.csv
+*.xlsx

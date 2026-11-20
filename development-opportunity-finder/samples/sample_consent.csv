@@ -1,0 +1,4 @@
+phone,consent_date,consent_source,consented_to,purpose,method,confirmed,review_status,consent_evidence,revoked_date
+6145550122,2026-10-02,web form (SAMPLE - made up),Sample Land Co,offers to buy their land,web form with a consent checkbox,Y,needs_review,SAMPLE form submission #1042 (made up),
+6145550125,2026-10-05,web form (SAMPLE - made up),Some Other Company,offers to buy their land,web form with a consent checkbox,Y,needs_review,SAMPLE form submission #1043 (made up),
+6145550119,2026-09-20,web form (SAMPLE - made up),Sample Land Co,offers to buy their land,web form with a consent checkbox,Y,needs_review,SAMPLE form submission #1001 (made up),2026-11-02

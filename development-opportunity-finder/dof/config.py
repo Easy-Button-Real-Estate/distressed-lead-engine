@@ -1,7 +1,7 @@
 """Load a market YAML file and fill in any heuristic keys the user left out.
 
 Null means "I don't know" and is kept. A missing key gets the default.
-Zoning codes are never invented here — a blank list stays blank.
+Zoning codes are never invented here  -  a blank list stays blank.
 """
 
 import copy, os

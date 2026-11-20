@@ -1,4 +1,4 @@
-# EXAMPLE — verify before you use this.
+# EXAMPLE  -  verify before you use this.
 # Austin, Travis County, TX. HOME Phase 1 and Phase 2. Austin repealed the
 # old "accessory apartment" section, so a second unit is just another unit,
 # not a separate ADU category. Deed restrictions stop a lot of these and the
@@ -9,7 +9,7 @@ kind: example
 checked: 2026-10-21
 
 market:
-  name: "Austin, TX (example — verify)"
+  name: "Austin, TX (example  -  verify)"
   city: Austin
   county: Travis
   state: TX

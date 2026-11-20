@@ -1,0 +1,13 @@
+comp_id,acres,sale_price,sale_date,notes
+SAMPLE-COMP-01,35.1,607500.0,2025-08-01,synthetic sample
+SAMPLE-COMP-02,71.5,1150600.0,2025-11-01,synthetic sample
+SAMPLE-COMP-03,76.7,1171800.0,2025-11-01,synthetic sample
+SAMPLE-COMP-04,34.3,510900.0,2025-12-01,synthetic sample
+SAMPLE-COMP-05,7.6,684000.0,2025-08-01,synthetic outlier (non-arm's-length)
+SAMPLE-COMP-06,35.0,526300.0,2025-06-01,synthetic sample
+SAMPLE-COMP-07,49.7,649300.0,2025-12-01,synthetic sample
+SAMPLE-COMP-08,27.6,602900.0,2025-06-01,synthetic sample
+SAMPLE-COMP-09,78.1,835700.0,2025-06-01,synthetic sample
+SAMPLE-COMP-10,42.7,443200.0,2025-04-01,synthetic sample
+SAMPLE-COMP-11,38.9,485400.0,2025-04-01,synthetic sample
+SAMPLE-COMP-12,13.8,133300.0,2025-07-01,synthetic sample

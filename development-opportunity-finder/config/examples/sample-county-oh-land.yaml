@@ -1,0 +1,32 @@
+# EXAMPLE - MADE UP. Goes with samples/sample_parcels.csv only.
+# "Sample County, OH" is fictional. These numbers are not from any real zoning code.
+# They exist so the demo can show lot-split signals and a lot-yield estimate on land.
+# For your market, say "set this up for <city, state>" and Claude fills in
+# config/my-market.yaml from the real code.
+
+kind: example
+checked: 2026-11-19
+
+market:
+  name: "Sample County, OH (fictional demo)"
+  city: Sample Township
+  county: Sample
+  state: OH
+
+enabled:
+  - lot_split
+  - middle_housing
+
+zoning:
+  lot_split: ["R-1", "PUD"]
+  middle_housing: ["PUD"]
+
+rules:
+  lot_split:
+    min_lot_sqft: 10000        # made up for the demo
+  middle_housing:
+    min_lot_sqft: 8000         # made up for the demo
+    max_units: 4
+
+sources:
+  - "None. Fictional demo values."

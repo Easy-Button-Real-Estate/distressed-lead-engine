@@ -1,4 +1,4 @@
-# EXAMPLE — verify before you use this.
+# EXAMPLE  -  verify before you use this.
 # Seattle, King County, WA. A filled-in sample so you can see a real config
 # and run the sample CSV. Not a zoning determination. Codes change, and
 # environmentally critical areas, trees, and the shoreline are not in a CSV.
@@ -8,7 +8,7 @@ kind: example
 checked: 2026-10-21
 
 market:
-  name: "Seattle, WA (example — verify)"
+  name: "Seattle, WA (example  -  verify)"
   city: Seattle
   county: King
   state: WA
