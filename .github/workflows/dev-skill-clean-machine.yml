@@ -105,6 +105,30 @@ jobs:
           New-Item -ItemType Directory -Force logs | Out-Null
           Expand-Archive -Path "dist\$env:ZIP" -DestinationPath "EBRE Land (1)"
           Get-ChildItem $env:KITDIR | Out-File logs\extract.txt
+      - name: Check SHA256SUMS.txt (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: ${{ env.KITDIR }}
+        run: shasum -a 256 -c SHA256SUMS.txt
+      - name: Check SHA256SUMS.txt (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          $bad = @()
+          foreach ($line in Get-Content -LiteralPath SHA256SUMS.txt) {
+            $line = $line.TrimEnd("`r")
+            if (-not $line) { continue }
+            if ($line -notmatch '^([0-9a-fA-F]{64})  (.+)$') { $bad += "bad line: $line"; continue }
+            $rel = $Matches[2]
+            $path = Join-Path (Get-Location) ($rel -replace '/','\')
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $bad += "MISSING $rel"; continue }
+            $got = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $Matches[1].ToLower()) { $bad += "FAIL $rel expected $($Matches[1].ToLower()) got $got" }
+          }
+          if ($bad.Count) { $bad; exit 1 }
+          "SHA256SUMS.txt ok"
+          exit 0
       - uses: actions/setup-python@v5
         id: py
         with:
@@ -237,6 +261,24 @@ jobs:
           $got = (Get-FileHash "dist\$env:ZIP" -Algorithm SHA256).Hash.ToLower()
           if ($got -ne $env:EXPECTED_SHA) { "SHA mismatch $got"; exit 1 }
           Expand-Archive -Path "dist\$env:ZIP" -DestinationPath "EBRE Land (1)"
+      - name: Check SHA256SUMS.txt
+        shell: pwsh
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          $bad = @()
+          foreach ($line in Get-Content -LiteralPath SHA256SUMS.txt) {
+            $line = $line.TrimEnd("`r")
+            if (-not $line) { continue }
+            if ($line -notmatch '^([0-9a-fA-F]{64})  (.+)$') { $bad += "bad line: $line"; continue }
+            $rel = $Matches[2]
+            $path = Join-Path (Get-Location) ($rel -replace '/','\')
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $bad += "MISSING $rel"; continue }
+            $got = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower()
+            if ($got -ne $Matches[1].ToLower()) { $bad += "FAIL $rel expected $($Matches[1].ToLower()) got $got" }
+          }
+          if ($bad.Count) { $bad; exit 1 }
+          "SHA256SUMS.txt ok"
+          exit 0
       - name: Install the Python install manager (winget, MSI fallback) and Python 3.13
         shell: pwsh
         run: |
