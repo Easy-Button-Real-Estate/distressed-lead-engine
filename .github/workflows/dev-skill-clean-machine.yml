@@ -31,6 +31,7 @@ jobs:
       - name: Build the zip once
         run: |
           mkdir -p dist logs
+          set -o pipefail
           python "$KIT/tools/build_zip.py" "$KIT" "dist/$ZIP" | tee logs/build.txt
       - id: hash
         name: SHA-256 of the zip
@@ -42,6 +43,7 @@ jobs:
         env:
           DOF_ZIP: ${{ github.workspace }}/dist/development-opportunity-finder.zip
         run: |
+          set -o pipefail
           python -m pip install -q -r "$KIT/requirements.txt"
           python "$KIT/tests/test_pipeline.py" 2>&1 | tee logs/tests_repo_layout.txt
           python "$KIT/tests/test_finder.py" 2>&1 | tee -a logs/tests_repo_layout.txt
@@ -161,6 +163,10 @@ jobs:
           $o | Tee-Object -FilePath logs\neg_nopython.txt
           if ($c -ne 1 -or $o -notmatch "Python 3.10 or newer was not found") { "FAIL: no-Python message missing"; exit 1 }
           if (Test-Path "$env:KITDIR\.venv") { "FAIL: .venv created without Python"; exit 1 }
+          # The starter exits 1 on purpose. pwsh would otherwise keep that as the step result.
+          "negative cases refused"
+          $global:LASTEXITCODE = 0
+          exit 0
 
       # ---------- what a user runs ----------
       - name: Starter preflight (Mac)
@@ -187,6 +193,7 @@ jobs:
         env:
           DOF_ZIP: ${{ github.workspace }}/dist/development-opportunity-finder.zip
         run: |
+          set -o pipefail
           if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=.venv/Scripts/python.exe; fi
           "$PY" tests/test_pipeline.py 2>&1 | tee "$GITHUB_WORKSPACE/logs/test_pipeline.txt"
           "$PY" tests/test_finder.py 2>&1 | tee "$GITHUB_WORKSPACE/logs/test_finder.txt"
@@ -194,6 +201,7 @@ jobs:
         shell: bash
         working-directory: ${{ env.KITDIR }}
         run: |
+          set -o pipefail
           if [ -x .venv/bin/python ]; then PY=.venv/bin/python; else PY=.venv/Scripts/python.exe; fi
           "$PY" scripts/run_pipeline.py --demo --satellite links 2>&1 | tee "$GITHUB_WORKSPACE/logs/demo.txt"
           test -f out_demo/START_HERE.md

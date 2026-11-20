@@ -22,7 +22,12 @@ echo " Claude Code needs a PAID Claude plan (Pro, Max, Team or Enterprise)"
 echo " or an Anthropic Console account with API billing. The free Claude"
 echo " plan does not include Claude Code."
 echo "=================================================================="
-HERE="$(cd "$(dirname "$0")" && pwd -P)"
+# bash builtins only: a no-Python PATH does not include dirname, and bash 5 rejects `cd ""`.
+case "$0" in
+  */*) _dir=${0%/*} ;;
+  *) _dir=. ;;
+esac
+HERE="$(cd "$_dir" && pwd -P)" || { echo "PROBLEM: can't open this folder."; pause; exit 1; }
 cd "$HERE" || { echo "PROBLEM: can't open this folder."; pause; exit 1; }
 echo "Folder: $HERE"
 case "$HERE" in
