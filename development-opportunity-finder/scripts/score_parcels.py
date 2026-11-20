@@ -277,8 +277,20 @@ def comp_anchor(comps_path, args):
             "low": float(clean.quantile(.25)), "high": float(clean.quantile(.75)), "source": f"comp median ({len(clean)} clean sales)"}
 
 
+# Columns written by enrich_constraints.py. They are used row by row ahead of the file's own column, so a parcel
+# that was looked up is never scored from a blank native column (pick() chooses columns, not cells).
+ENRICHED_COLS = {"flood_pct": "femafloodpct", "fema_zone": "femazones", "wetlands_pct": "wetlandspctest",
+                 "slope_pct": "slopepctest", "buildable_pct": "buildablepctest"}
+
+
+def _blank(v):
+    return v is None or str(v).strip().lower() in ("", "nan", "none", "null")
+
+
 def score(df, box, infra, anchor, args):
     C = {k: pick(df, k) for k in ALIASES}
+    _cols = {norm(c): c for c in df.columns}
+    CE = {k: _cols[v] for k, v in ENRICHED_COLS.items() if v in _cols and _cols[v] != C.get(k)}
     county_codes = {c.strip().upper() for c in (getattr(args, "county_code", None) or []) if c.strip()}
     if C["mail_csz"] and not (C["mail_city"] or C["mail_state"] or C["mail_zip"]):
         # one "CITY ST 12345-6789" mailing line (common on county layers): split it
@@ -333,7 +345,10 @@ def score(df, box, infra, anchor, args):
     county_zips = {str(v).strip()[:5] for v in (df[C["zip"]] if C["zip"] else []) if str(v).strip()}
     recs = []
     for i, (_, r) in enumerate(df.iterrows()):
-        g = lambda k: r[C[k]] if C[k] else None
+        def g(k, r=r):
+            if k in CE and not _blank(r[CE[k]]):
+                return r[CE[k]]
+            return r[C[k]] if C[k] else None
         acres = num(g("acres"))
         f, note, gates, flags = {}, {}, [], []
         fsrc = {}
@@ -503,6 +518,26 @@ def score(df, box, infra, anchor, args):
         elif re.search(r"\btrust(ee)?s?\b", owner, re.I):
             mot += 5; mot_notes.append("trust owner (a living trust is not an estate)")
         mot = min(100.0, mot)
+        # four states per signal: a missing column or a blank value is never read as "not motivated"
+        def _st(cols, vals, hit):
+            if not all(cols):
+                return SIG_NOT_CHECKED
+            if not all(not blank(v) for v in vals):
+                return SIG_UNAVAILABLE
+            return SIG_PRESENT if hit else SIG_ABSENT
+        oc_cols = (C["mail_county"], C["county"]) if (C["mail_county"] and C["county"]) else (C["mail_zip"], C["zip"])
+        oc_vals = (mc_, pc_) if (C["mail_county"] and C["county"]) else (mz, pz)
+        oos = ms_ and ps_ and ms_ != ps_
+        sig_states = {
+            "long_hold": _st([C["last_sale_date"]], [sd], yrs is not None and yrs >= 10),
+            "out_of_state": _st([C["mail_state"], C["state"]], [ms_, ps_], oos),
+            "out_of_county": SIG_PRESENT if oos else _st(oc_cols, oc_vals, any("out-of-county" in m for m in mot_notes)),
+            "no_mortgage": _st([C["mortgage"]], [mg], "no mortgage on record" in mot_notes),
+            "tax_delinquent": _st([C["tax_delinquent"]], [g("tax_delinquent")], "tax delinquent" in mot_notes),
+            "estate_heirs": _st([C["owner"]], [owner], "estate / heirs" in mot_notes),
+            "trust": _st([C["owner"]], [owner], any(m.startswith("trust owner") for m in mot_notes)),
+            "multiple_owners": _st([C["owner"]], [owner], "multiple owners" in mot_notes),
+        }
         known = {k: v for k, v in f.items() if k in W and v is not None}
         kw = sum(W[k] for k in known)
         conf = kw / 100.0
@@ -560,6 +595,7 @@ def score(df, box, infra, anchor, args):
             "asking_price": ask, "record_url": str(g("record_url") or ""),
             "factors": f, "notes": note, "gates": gates, "flags": flags, "sources": fsrc, "jurisdiction": juris,
             "land_score": round(land, 1), "confidence": round(conf, 2), "motivation": round(mot), "motivation_notes": mot_notes,
+            "signal_states": sig_states,
             "priority": round(priority, 1), "expected_value": ev, "missing": missing,
             "excluded_owner": exo, "research_next": research_next(missing, flags, juris, owner, f, note),
             "raw": {k: r[C[k]] for k in C if C[k]},
@@ -581,13 +617,46 @@ def score(df, box, infra, anchor, args):
         x["tiebreak"] = ("" if len(same) == 1 else
                          f"tied at priority {x['priority']} with {len(same) - 1} other(s); order: data coverage, land score, "
                          "owner signals, acreage fit, then APN")
-        x["tier"] = "A - call first" if x["priority"] >= 72 else ("B - work next" if x["priority"] >= 58 else "C - park")
+        # Tier A needs flood, wetlands AND slope checked: unknown factors are left out of the score, so an unchecked
+        # parcel could otherwise reach tier A on the factors that happen to be known.
+        unchecked = [CONSTRAINT_LABEL[k] for k in CONSTRAINTS if x["factors"].get(k) is None]
+        x["constraints_unchecked"] = unchecked
+        if x["priority"] >= 72 and not unchecked:
+            x["tier"] = TIER_A
+        elif x["priority"] >= 72:
+            x["tier"] = TIER_B
+            x["flags"].append("held out of tier A until checked: " + ", ".join(unchecked))
+        else:
+            x["tier"] = TIER_B if x["priority"] >= 58 else TIER_C
         if x["confidence"] < 0.6:
             x["flags"].append("thin data - verify before ranking high")
     for x in recs:
         if x["gates"]:
             x["rank"], x["tier"] = None, "Excluded"
     return recs, C, dist, file_anchor
+
+
+SIG_PRESENT, SIG_ABSENT, SIG_NOT_CHECKED, SIG_UNAVAILABLE = "present", "checked-not-present", "not-checked", "unavailable-from-source"
+SIG_STATES = (SIG_PRESENT, SIG_ABSENT, SIG_NOT_CHECKED, SIG_UNAVAILABLE)
+SIG_LABEL = {"long_hold": "long hold", "out_of_state": "out-of-state owner", "out_of_county": "out-of-county owner",
+             "no_mortgage": "no mortgage", "tax_delinquent": "tax delinquent", "estate_heirs": "estate / heirs",
+             "trust": "trust owner", "multiple_owners": "multiple owners"}
+
+
+def blank(v):
+    return v is None or str(v).strip() == "" or str(v).strip().lower() in ("nan", "nat", "none")
+
+
+def signal_gaps(states):
+    """'not checked: tax delinquent; unavailable from source: no mortgage' (empty when every signal was checked)."""
+    nc = [SIG_LABEL[k] for k, v in states.items() if v == SIG_NOT_CHECKED]
+    un = [SIG_LABEL[k] for k, v in states.items() if v == SIG_UNAVAILABLE]
+    return "; ".join(x for x in (("not checked: " + ", ".join(nc)) if nc else "", ("unavailable from source: " + ", ".join(un)) if un else "") if x)
+
+
+TIER_A, TIER_B, TIER_C = "A - research first", "B - work next", "C - park"
+CONSTRAINTS = ("flood", "wetlands", "slope")
+CONSTRAINT_LABEL = {"flood": "FEMA flood", "wetlands": "NWI wetlands", "slope": "USGS slope / buildable"}
 
 
 def research_next(missing, flags, juris, owner, f, note):
@@ -762,14 +831,12 @@ def main(argv=None):
             s = x["factors"].get(k)
             row[f"{k}_pts"] = None if s is None else round(s * box["weights"][k], 1)
         row["tiebreak"] = x.get("tiebreak", "")
+        for k in CONSTRAINTS:  # the flood / wetlands / slope value actually used (blank = not checked)
+            row[f"{k}_screen"] = x["notes"].get(k, "") if x["factors"].get(k) is not None else ""
+        row["constraints_unchecked"] = ", ".join(x.get("constraints_unchecked") or [])
         row.update({"why": "; ".join(v for v in x["notes"].values()), "flags": "; ".join(x["flags"]), "motivation_signals": "; ".join(x["motivation_notes"]),
-                    "sig_long_hold": "Y" if (x["years_held"] or 0) >= 10 else "", "sig_out_of_state": "Y" if "out-of-state owner" in x["motivation_notes"] else "",
-                    "sig_out_of_county": "Y" if any("out-of-county" in m or "out-of-state" in m for m in x["motivation_notes"]) else "",
-                    "sig_tax_delinquent": "Y" if "tax delinquent" in x["motivation_notes"] else "",
-                    "sig_no_mortgage": "Y" if "no mortgage on record" in x["motivation_notes"] else "",
-                    "sig_estate_heirs": "Y" if "estate / heirs" in x["motivation_notes"] else "",
-                    "sig_trust": "Y" if any(m.startswith("trust owner") for m in x["motivation_notes"]) else "",
-                    "sig_multiple_owners": "Y" if "multiple owners" in x["motivation_notes"] else "",
+                    **{"sig_" + k: v for k, v in x["signal_states"].items()},
+                    "signals_not_checked": signal_gaps(x["signal_states"]),
                     "owner_is_entity": "Y" if re.search(r"\b(llc|inc|corp|co|company|ltd|lp|llp|partners|partnership|holdings|trust|bank|church)\b", x["owner"] or "", re.I) else "",
                     "excluded_because": "; ".join(x["gates"]), "hard_gate_failures": "; ".join(x["gates"]), "missing_data": ", ".join(x["missing"]),
                     "research_next": x["research_next"],

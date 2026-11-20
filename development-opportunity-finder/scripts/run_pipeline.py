@@ -29,7 +29,7 @@ sys.path.insert(0, HERE)
 sys.path.insert(0, ROOT)
 
 import add_split_adu_signals, build_buy_box, enrich_constraints, fetch_arcgis_parcels, build_marketing_lists, campaign_kit, satellite_check, score_parcels, skip_trace  # noqa: E402
-from _common import SOURCE_UNAVAILABLE, friendly_error, read_rows  # noqa: E402
+from _common import PRIVACY_PARAGRAPH, SKIPTRACE_LINE, SOURCE_UNAVAILABLE, friendly_error, read_rows  # noqa: E402
 
 S = os.path.join(ROOT, "samples")
 
@@ -63,13 +63,15 @@ def write_buyer_package(ranked, path):
     return len(rows_)
 
 
-def enrich_shortlist(parcels, ranked, n, out, quiet=True):
-    """FEMA / NWI / USGS lookups for the top-n ranked parcels (in rank order), written to out/parcels_enriched.csv.
-    Every other parcel is kept as is. Returns enrich_constraints' result plus the output path."""
+def enrich_shortlist(parcels, ranked, n, out, quiet=True, apns=None, label=None):
+    """FEMA / NWI / USGS lookups for the top-n ranked parcels (in rank order), or for the given APNs, written to
+    out/parcels_enriched.csv. Every other parcel is kept as is (so earlier lookups in `parcels` survive).
+    Returns enrich_constraints' result plus the output path and the APNs looked up."""
     import csv as _csv
     df = score_parcels.load_table(parcels)
     apn_c = score_parcels.pick(df, "apn")
-    top = [str(r.get("apn") or "") for r in read_rows(ranked) if str(r.get("rank") or "").strip()][:n]
+    top = list(apns) if apns is not None else [str(r.get("apn") or "") for r in read_rows(ranked) if str(r.get("rank") or "").strip()][:n]
+    top = [x for x in dict.fromkeys(top) if x]
     if not top or not apn_c:
         return None
     pos = {k: i for i, k in enumerate(top)}
@@ -78,15 +80,33 @@ def enrich_shortlist(parcels, ranked, n, out, quiet=True):
     tmp = os.path.join(out, "_shortlist_order.csv")
     df.to_csv(tmp, index=False, quoting=_csv.QUOTE_MINIMAL)
     dest = os.path.join(out, "parcels_enriched.csv")
-    print(f"\n== 2a. Flood / wetlands / slope lookups for the top {len(top)} (FEMA NFHL, USFWS NWI, USGS 3DEP)")
+    print(f"\n== {label or '2a. Flood / wetlands / slope lookups for the top ' + str(len(top))} (FEMA NFHL, USFWS NWI, USGS 3DEP)")
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf) if quiet else contextlib.nullcontext():
         res = enrich_constraints.main(["--input", tmp, "--output", dest, "--limit", str(len(top))])
     os.remove(tmp)
-    res = dict(res or {}, output=dest)
+    res = dict(res or {}, output=dest, apns=top)
     print(f"   {res.get('ok', 0)} of {res.get('checked', 0)} parcels fully checked" +
           (" (NWI returned nothing for the whole area: wetlands left unknown)" if res.get("nwi_zero_everywhere") else ""))
     return res
+
+
+ENRICH_MAX_ROUNDS = 6
+
+
+def research_targets(ranked, top_n):
+    """APNs that must have flood / wetlands / slope looked up after a rescore: every tier-A row, every row whose
+    priority reaches the tier-A line (held in B only because it is unchecked) and the top max(10, --top) rows."""
+    rows_ = [r for r in read_rows(ranked) if str(r.get("rank") or "").strip()]
+    want = []
+    for i, r in enumerate(rows_):
+        try:
+            pr = float(r.get("priority") or 0)
+        except ValueError:
+            pr = 0.0
+        if i < max(10, top_n) or str(r.get("tier") or "").startswith("A") or pr >= 72:
+            want.append(str(r.get("apn") or ""))
+    return [x for x in want if x]
 
 
 def main(argv=None):
@@ -158,7 +178,7 @@ def main(argv=None):
     # the suppress/ drop folder: every CSV in it is applied on every run (not in the demo)
     drop_dir = None if a.demo else (a.suppress_dir or next((p for p in (os.path.join(os.getcwd(), "suppress"), os.path.join(ROOT, "suppress"))
                                                               if os.path.isdir(p)), None))
-    drop_files, drop_age = build_marketing_lists.suppression.drop_folder(drop_dir)
+    drop_files, drop_age, drop_info = build_marketing_lists.suppression.drop_folder(drop_dir)
     a.suppress = list(a.suppress) + drop_files
     sup_rows = build_marketing_lists.suppression.merge(master, a.suppress, a.stop_replies, persist=bool(master))
     sup_file = master
@@ -221,15 +241,39 @@ def main(argv=None):
     enrich_info = None
     parcels_orig = a.parcels
     if a.enrich_top and not a.demo:
+        # Unknown factors are left out of the score, so an unchecked parcel can climb after the rescore.
+        # Repeat: look up every target that has not been looked up yet, rescore, until the post-rescore
+        # tier A + top max(10, --top) are all checked (score_parcels also keeps unchecked parcels out of tier A).
+        checked, rounds = set(), 0
         try:
-            enrich_info = enrich_shortlist(a.parcels, ranked, a.enrich_top, out, q)
-        except Exception as e:  # network blocked or a source down: keep the first scoring
+            todo = None
+            while rounds < ENRICH_MAX_ROUNDS:
+                if todo is None:
+                    info = enrich_shortlist(a.parcels, ranked, a.enrich_top, out, q)
+                else:
+                    info = enrich_shortlist(a.parcels, ranked, 0, out, q, apns=todo,
+                                            label=f"2a. Round {rounds + 1}: lookups for {len(todo)} parcel(s) that rose into tier A / the top {max(10, a.top)} unchecked")
+                if not info:
+                    break
+                rounds += 1
+                checked |= set(info["apns"])
+                enrich_info = dict(info, checked=len(checked), rounds=rounds,
+                                   ok=(enrich_info or {}).get("ok", 0) + info.get("ok", 0) if enrich_info else info.get("ok", 0))
+                a.parcels = info["output"]
+                argv2[argv2.index("--input") + 1] = a.parcels
+                summ, _ = step(f"2a. Score again with flood / wetlands / slope ({len(checked)} parcels looked up)", score_parcels.main, argv2, q)
+                todo = [x for x in research_targets(ranked, a.top) if x not in checked]
+                if not todo:
+                    break
+            left = [x for x in research_targets(ranked, a.top) if x not in checked]
+            enrich_info = dict(enrich_info or {}, targets_unchecked=left)
+            if left:
+                notes.append(f"{len(left)} parcel(s) in tier A / the top {max(10, a.top)} were not looked up after {rounds} rounds "
+                             "(they are held out of tier A). Re-run with a larger --enrich-top.")
+        except Exception as e:  # network blocked or a source down: keep the scoring so far
             print(f"   Shortlist lookups: {SOURCE_UNAVAILABLE} ({friendly_error(e)})")
-            notes.append("Flood / wetlands / slope lookups for the shortlist failed this run (" + friendly_error(e) + "). Re-run later.")
-        if enrich_info:
-            a.parcels = enrich_info["output"]
-            argv2[argv2.index("--input") + 1] = a.parcels
-            summ, _ = step(f"2a. Score again with flood / wetlands / slope for the top {enrich_info['checked']}", score_parcels.main, argv2, q)
+            notes.append("Flood / wetlands / slope lookups for the shortlist failed this run (" + friendly_error(e) + "). Re-run later. "
+                         "Parcels without them are held out of tier A.")
     write_buyer_package(ranked, os.path.join(out, "buyer_package.csv"))
     print(f"   {summ['parcels_in_file']} parcels scored, {summ['eligible']} passed the buy box, tiers {summ['tier_counts']}")
     if summ.get("next_step_hint"):
@@ -275,14 +319,14 @@ def main(argv=None):
         print(f"   {len(tr)} owners matched, {sum(1 for t in tr if t.get('phone1'))} with a phone. See skiptrace/skiptrace_report.txt")
     else:
         notes.append("Phones and emails: nobody is traced yet. Upload skiptrace/skiptrace_upload_<provider>.csv to your skip-trace provider, "
-                     "then re-run with --skiptrace-results <their file>.")
+                     "then re-run with --skiptrace-results <their file>. " + SKIPTRACE_LINE)
 
     # 5. marketing lists
     argv5 = ["--ranked", ranked, "--tiers", a.tiers, "--jurisdiction", a.market or ""]
-    stale = (not a.demo) and (drop_age is None or drop_age > build_marketing_lists.suppression.DROP_STALE_DAYS)
+    hold_why = "" if a.demo else build_marketing_lists.suppression.freshness_reason(drop_age, drop_info)
+    stale = bool(hold_why)
     if stale:
-        argv5 += ["--hold-phone-sms", ("no file with entries in the suppress/ folder" if drop_age is None else
-                                       f"the newest file in suppress/ is {drop_age:.0f} days old")]
+        argv5 += ["--hold-phone-sms", hold_why]
     if state_dir:
         argv5 += ["--state-file", os.path.join(state_dir, "seen_owners.json"), "--suppression-master", master]
     elif sup_file:
@@ -352,8 +396,8 @@ def main(argv=None):
               "Lookups are automatic when public sources are available; re-run later or add the data.", ""]
     if stale:
         L += ["> **SUPPRESSION LIST MAY BE OUT OF DATE.** " +
-              ("No file with entries in the suppress/ folder. " if drop_age is None else
-               f"The newest file in suppress/ is {drop_age:.0f} days old (more than {build_marketing_lists.suppression.DROP_STALE_DAYS}). ") +
+              hold_why[0].upper() + hold_why[1:] + ". Freshness uses the date each export was generated (from the file, or "
+              "entered with scripts/suppression.py import), never the date you copied it. " +
               build_marketing_lists.OPT_OUT_SENTENCE + " " + build_marketing_lists.MANUAL_SENTENCE +
               " Save them in suppress/ and re-run. **Until then every phone and text output is held:** no cold_call.csv, "
               "no sms.csv, and phones are blank in crm_import.csv (see marketing/PHONE_AND_SMS_HELD.txt).", ""]
@@ -374,8 +418,16 @@ def main(argv=None):
           "- Owner signals your data had: " + (", ".join(summ.get("owner_signals_in_data", [])) or "none") +
           ". Not in your data, so not checked: " + (", ".join(summ.get("owner_signals_not_in_data", [])) or "none") + ".",
           f"- Owners excluded by type (builder, HOA, utility, church...): {summ.get('excluded_owners', 0)} - see excluded_owners.csv",
-          (f"- Flood / wetlands / slope looked up for the top {enrich_info['checked']} parcels ({enrich_info.get('ok', 0)} fully checked) and scored again."
-           if enrich_info else ("- Flood / wetlands / slope: not looked up this run (demo, --enrich-top 0, or the lookups failed)." )),
+          (f"- Flood / wetlands / slope looked up for the top {a.enrich_top} parcels" +
+           (f", plus {enrich_info['checked'] - min(a.enrich_top, enrich_info['checked'])} that rose into tier A / the top {max(10, a.top)} after rescoring"
+            if enrich_info.get("rounds", 1) > 1 else "") +
+           f" ({enrich_info['checked']} looked up in {enrich_info.get('rounds', 1)} round(s), {enrich_info.get('ok', 0)} fully checked) and scored again. " +
+           (f"Every tier-A and top-{max(10, a.top)} parcel was looked up." if not enrich_info.get("targets_unchecked") else
+            f"{len(enrich_info['targets_unchecked'])} tier-A / top-{max(10, a.top)} parcel(s) were not looked up (held out of tier A).")
+           if enrich_info else ("- Flood / wetlands / slope: not looked up this run (demo, --enrich-top 0, or the lookups failed). "
+                                "Tier A needs all three, so parcels without them are held in tier B.")),
+          "- Tier A (\"A - research first\") needs FEMA flood, NWI wetlands and USGS slope values; a parcel missing any of them is held in "
+          "tier B with a \"held out of tier A\" flag. Tier A means research first, not call first.",
           (f"- Ties: {summ.get('ties_in_top')} of the top {len(summ.get('top', []))} share a priority with another parcel. Order among ties: "
            "more factors with data, land score, owner signals, acreage fit, then APN (tiebreak column)." if summ.get("ties_in_top") else
            "- No ties in the top parcels."),
@@ -395,7 +447,8 @@ def main(argv=None):
            else "## Top 5 (match recent developer purchase patterns and the buy box)"), ""]
     for r in top:
         L.append(f"{int(float(r['rank']))}. {r.get('address') or r.get('apn')} - {r['acres']} ac, {r['tier']}, priority {r['priority']}. "
-                 f"Owner: {r.get('owner') or 'unknown'}. {(str(r.get('motivation_signals') or '').strip() if str(r.get('motivation_signals') or '').strip().lower() != 'nan' else '') or 'No owner signals found in the data.'}")
+                 f"Owner: {r.get('owner') or 'unknown'}. {(str(r.get('motivation_signals') or '').strip() if str(r.get('motivation_signals') or '').strip().lower() != 'nan' else '') or 'No owner signal present among the signals checked (that is not the same as unmotivated).'}"
+                 + (f" Signals {r['signals_not_checked']}." if str(r.get('signals_not_checked') or '').strip() not in ('', 'nan') else ""))
         if r.get("research_next"):
             L.append(f"   Research next: {r['research_next']}")
         if r.get("tiebreak"):
@@ -421,7 +474,9 @@ def main(argv=None):
                                       "- Check zoning on the top parcels with the city.",
                                       "- Read marketing/COMPLIANCE.md before you call or text (DNC scrub, consent, registration, state wholesaling rules).",
                                       "- Nothing has been mailed, dialed or texted. You start the campaign from your own tools.",
-                                      "- Personal data stays in this folder. Don't upload it to unrelated services; delete old exports with scripts/cleanup_exports.py."]
+                                      "- " + SKIPTRACE_LINE,
+                                      "- Privacy: " + PRIVACY_PARAGRAPH + " Don't upload these files to unrelated services; delete old exports "
+                                      "with scripts/cleanup_exports.py."]
     if a.demo:
         L.insert(2, "DEMO: every parcel, owner, sale and phone number here is made up (555-01xx numbers, example.com emails). "
                     "The DNC scrub file (samples/sample_dnc_scrub.csv) is made up and dated today. "

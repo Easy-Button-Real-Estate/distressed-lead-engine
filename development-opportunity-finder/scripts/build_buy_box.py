@@ -450,8 +450,11 @@ def main(argv=None):
     zone_support = sum(c for z, c in zoning_counts if z.lower() in (box.get("zoning_keywords") or [])) if enough else 0
     criteria = [
         {"criterion": "Size (acres)",
-         "value": (f"{box['acres']['min']}-{box['acres']['max']} (sweet spot {box['acres']['ideal_min']}-{box['acres']['ideal_max']})" if enough else
-                   f"{preset['acres']['min']}-{preset['acres']['max']} (sweet spot {preset['acres']['ideal_min']}-{preset['acres']['ideal_max']})"),
+         # the range actually used for scoring (box["acres"]), and where it came from
+         "value": (f"{box['acres']['min']}-{box['acres']['max']} ac from your sales (sweet spot {box['acres']['ideal_min']}-{box['acres']['ideal_max']} ac; "
+                   f"{n} county purchases)" if enough else
+                   f"EBRE default {preset['acres']['min']}-{preset['acres']['max']} ac ({n} county purchases seen; {a.min_sales} needed to set from data; "
+                   f"sweet spot {preset['acres']['ideal_min']}-{preset['acres']['ideal_max']} ac)"),
          "source": (f"your sales data ({conf.upper()} confidence)" if enough else PRESET),
          "supporting_purchases": (f"{n} of {n}" if enough else f"0 used ({n} seen; {a.min_sales} needed to set it from data)")},
         {"criterion": "Zoning", "value": ", ".join((box.get("zoning_keywords") or preset.get("zoning_keywords", []))[:8]) or "any",

@@ -1,17 +1,22 @@
 # Development Opportunity Finder: clean-machine check.
 # Repo layout: this file at .github/workflows/, the kit under development-opportunity-finder/.
 # 1) build: build the zip ONCE (tools/build_zip.py), record its SHA-256, run the tests in repo layout, upload the zip.
-# 2) clean-machine: macos-latest and windows-latest x Python 3.10 / 3.13 / 3.14. Each job downloads the same zip,
+# 2) clean-machine: macos-latest and windows-latest x Python 3.10 / 3.13 / 3.14 / 3.15 (3.15 is a pre-release). Each job downloads the same zip,
 #    verifies the SHA-256, extracts it with the OS's own tool into a folder named "EBRE Land (1)", runs the negative
 #    cases (temp folder, path inside a .zip, no Python), the starter's --check, both test suites and the demo.
-# 3) windows-pymanager: installs Python with the Python install manager (winget, MSI fallback), hides the runner's
-#    preinstalled Pythons, and runs the Windows starter so it has to find that Python itself.
+# 3) windows-pymanager: installs the Python install manager (winget, MSI fallback), first checks that the starter
+#    says "Python install manager found but no Python installed. Run: py install 3.14" while no runtime is installed,
+#    then installs Python 3.13 with it, hides the runner's preinstalled Pythons, and runs the Windows starter so it has
+#    to find that Python itself. It runs /which-python, /check and the demo only, NOT the two test suites (those run
+#    in build and in every clean-machine job).
+# The kit zip is also uploaded under a release-style name: development-opportunity-finder-<ref>-<sha7>.
 # setup_check.txt and every log are uploaded as artifacts. Nothing is deployed or published.
 name: dev-skill-clean-machine
 on:
   workflow_dispatch:
   push:
-    branches: ["dev-skill/round5-clean-machine"]
+    branches: ["main", "dev-skill/round5-clean-machine", "dev-skill/round6-clean-machine"]
+    tags: ["v*"]
 permissions:
   contents: read
 env:
@@ -23,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       sha256: ${{ steps.hash.outputs.sha256 }}
+      release_name: development-opportunity-finder-${{ steps.ref.outputs.name }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,6 +39,13 @@ jobs:
           mkdir -p dist logs
           set -o pipefail
           python "$KIT/tools/build_zip.py" "$KIT" "dist/$ZIP" | tee logs/build.txt
+      - id: ref
+        name: Release-style name (ref + short commit)
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          ref=$(printf '%s' "$REF_NAME" | tr -c 'A-Za-z0-9._-' '-' | sed 's/-*$//')
+          echo "name=${ref:-manual}-${GITHUB_SHA::7}" | tee -a "$GITHUB_OUTPUT"
       - id: hash
         name: SHA-256 of the zip
         run: |
@@ -54,6 +67,16 @@ jobs:
             dist/development-opportunity-finder.zip
             dist/development-opportunity-finder.zip.sha256
           if-no-files-found: error
+      - name: Release-style copy of the zip
+        run: |
+          mkdir -p release
+          cp "dist/$ZIP" "release/development-opportunity-finder-${{ steps.ref.outputs.name }}.zip"
+          (cd release && sha256sum *.zip | tee "development-opportunity-finder-${{ steps.ref.outputs.name }}.zip.sha256")
+      - uses: actions/upload-artifact@v4
+        with:
+          name: development-opportunity-finder-${{ steps.ref.outputs.name }}
+          path: release/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -66,7 +89,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
-        python: ["3.10", "3.13", "3.14"]
+        python: ["3.10", "3.13", "3.14", "3.15"]
     runs-on: ${{ matrix.os }}
     env:
       EXPECTED_SHA: ${{ needs.build.outputs.sha256 }}
@@ -105,30 +128,6 @@ jobs:
           New-Item -ItemType Directory -Force logs | Out-Null
           Expand-Archive -Path "dist\$env:ZIP" -DestinationPath "EBRE Land (1)"
           Get-ChildItem $env:KITDIR | Out-File logs\extract.txt
-      - name: Check SHA256SUMS.txt (Mac)
-        if: runner.os == 'macOS'
-        shell: bash
-        working-directory: ${{ env.KITDIR }}
-        run: shasum -a 256 -c SHA256SUMS.txt
-      - name: Check SHA256SUMS.txt (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        working-directory: ${{ env.KITDIR }}
-        run: |
-          $bad = @()
-          foreach ($line in Get-Content -LiteralPath SHA256SUMS.txt) {
-            $line = $line.TrimEnd("`r")
-            if (-not $line) { continue }
-            if ($line -notmatch '^([0-9a-fA-F]{64})  (.+)$') { $bad += "bad line: $line"; continue }
-            $rel = $Matches[2]
-            $path = Join-Path (Get-Location) ($rel -replace '/','\')
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $bad += "MISSING $rel"; continue }
-            $got = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower()
-            if ($got -ne $Matches[1].ToLower()) { $bad += "FAIL $rel expected $($Matches[1].ToLower()) got $got" }
-          }
-          if ($bad.Count) { $bad; exit 1 }
-          "SHA256SUMS.txt ok"
-          exit 0
       - uses: actions/setup-python@v5
         id: py
         with:
@@ -261,25 +260,7 @@ jobs:
           $got = (Get-FileHash "dist\$env:ZIP" -Algorithm SHA256).Hash.ToLower()
           if ($got -ne $env:EXPECTED_SHA) { "SHA mismatch $got"; exit 1 }
           Expand-Archive -Path "dist\$env:ZIP" -DestinationPath "EBRE Land (1)"
-      - name: Check SHA256SUMS.txt
-        shell: pwsh
-        working-directory: ${{ env.KITDIR }}
-        run: |
-          $bad = @()
-          foreach ($line in Get-Content -LiteralPath SHA256SUMS.txt) {
-            $line = $line.TrimEnd("`r")
-            if (-not $line) { continue }
-            if ($line -notmatch '^([0-9a-fA-F]{64})  (.+)$') { $bad += "bad line: $line"; continue }
-            $rel = $Matches[2]
-            $path = Join-Path (Get-Location) ($rel -replace '/','\')
-            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { $bad += "MISSING $rel"; continue }
-            $got = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLower()
-            if ($got -ne $Matches[1].ToLower()) { $bad += "FAIL $rel expected $($Matches[1].ToLower()) got $got" }
-          }
-          if ($bad.Count) { $bad; exit 1 }
-          "SHA256SUMS.txt ok"
-          exit 0
-      - name: Install the Python install manager (winget, MSI fallback) and Python 3.13
+      - name: Install the Python install manager (winget, MSI fallback), no runtime yet
         shell: pwsh
         run: |
           $ok = $false
@@ -297,6 +278,30 @@ jobs:
           $dirs = @("$env:ProgramFiles\PyManager", "$env:LOCALAPPDATA\Microsoft\WindowsApps", "$env:LOCALAPPDATA\Python\bin")
           foreach ($d in $dirs) { if (Test-Path $d) { $d | Out-File -Append -Encoding utf8 $env:GITHUB_PATH } }
           $env:PATH = ($dirs -join ";") + ";" + $env:PATH
+          cmd /c "where pymanager py python <nul" 2>&1 | Tee-Object -FilePath logs\where_before_install.txt
+          cmd /c "py list <nul" 2>&1 | Tee-Object -FilePath logs\py_list_before_install.txt
+          $global:LASTEXITCODE = 0
+          exit 0
+      - name: Negative case - install manager present, no Python runtime
+        shell: pwsh
+        working-directory: ${{ env.KITDIR }}
+        run: |
+          $saved = $env:PATH
+          $env:PATH = ($env:PATH -split ";" | Where-Object { $_ -notmatch "hostedtoolcache" -and $_ -notmatch "\\Python3\d+" }) -join ";"
+          $env:EBRE_PATH_ONLY = "1"; $env:PYTHON_MANAGER_AUTOMATIC_INSTALL = "false"
+          Remove-Item Env:EBRE_PYTHON -ErrorAction SilentlyContinue
+          $o = cmd /c start-windows.bat /check 2>&1 | Out-String; $c = $LASTEXITCODE
+          $env:PATH = $saved; Remove-Item Env:EBRE_PATH_ONLY
+          $o | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\logs\neg_pymanager_noruntime.txt"
+          if ($c -ne 1 -or $o -notmatch [regex]::Escape("Python install manager found but no Python installed. Run: py install 3.14")) {
+            "FAIL: expected the install-manager / no-runtime message (exit $c)"; exit 1 }
+          if (Test-Path ".venv") { "FAIL: .venv created without a Python runtime"; exit 1 }
+          "install manager without a runtime: refused with the expected message"
+          $global:LASTEXITCODE = 0
+          exit 0
+      - name: Install Python 3.13 with the install manager
+        shell: pwsh
+        run: |
           cmd /c "py install 3.13 <nul" 2>&1 | Tee-Object -FilePath logs\py_install.txt
           cmd /c "py list <nul" 2>&1 | Tee-Object -FilePath logs\py_list.txt
       - name: Starter finds the install-manager Python by itself (runner Pythons hidden)

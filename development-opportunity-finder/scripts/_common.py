@@ -6,6 +6,19 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", str(s).lower())
 
 
+# Canonical privacy paragraph: used word for word in SECURITY.md, SKILL.md, SETUP.md, CLAUDE.md, the starters,
+# COMPLIANCE.md and START_HERE.md (a test checks every one).
+PRIVACY_PARAGRAPH = ("The kit's local scripts store and process owner data in your kit folder and do not send owner data to "
+                     "public map servers. However, when Claude Code reads file contents or includes them in prompts, that "
+                     "information may be transmitted to Anthropic for processing under your Claude plan or API account terms "
+                     "and settings. Only use this workflow with data you are authorized to share with that service. Keep API "
+                     "keys in the local .env file and never paste them into chat.")
+SKIPTRACE_LINE = ("Bring skip-trace results back through the kit before dialing. Never load the vendor file straight into your dialer.")
+DNC_NOT_CONSENT = ("A DNC scrub is not consent, and consent does not override other restrictions (calling hours, do-not-contact "
+                   "requests, state rules, call-frequency limits). 10DLC registration is a separate requirement: it is not "
+                   "consent, and consent does not replace it.")
+
+
 def read_rows(path):
     """Read a CSV into a list of dicts. Tries UTF-8 then Latin-1."""
     for enc in ("utf-8-sig", "latin-1"):

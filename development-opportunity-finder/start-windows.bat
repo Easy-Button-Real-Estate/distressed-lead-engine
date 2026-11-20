@@ -5,12 +5,13 @@ REM   start-windows.bat /check         non-interactive preflight: build .venv, i
 REM   start-windows.bat /which-python  only show which Python it would use, then exit
 REM What it runs, in order (nothing is sent anywhere except pip downloading the packages in requirements.txt):
 REM   1) refuses to run from inside the zip or a temporary folder
-REM   2) finds Python 3.10+ : EBRE_PYTHON if you set it, then py -3, then every "python" / "python3" on PATH
+REM   2) finds Python 3.10+ : EBRE_PYTHON if you set it, then py -3 and py -3.15 ... py -3.10, then every "python" / "python3" on PATH
 REM      (each one is version-checked, including the Microsoft Store stubs in \WindowsApps\), then the usual install folders
 REM   3) makes a private .venv folder here and installs requirements.txt into it
 REM   4) runs scripts\doctor.py (setup check, saved to setup_check.txt in this folder)
 REM   5) checks for Git Bash and Claude Code, then starts Claude Code in this folder
 REM If Windows shows "Windows protected your PC" (SmartScreen): click "More info", then "Run anyway".
+REM If only the Python install manager is installed, with no Python runtime, it says: py install 3.14
 set "CHECK=0"
 set "WHICH=0"
 if /i "%~1"=="/check" set "CHECK=1"
@@ -24,6 +25,17 @@ echo  You need: Python 3.10 or newer, and Claude Code.
 echo  Claude Code needs a PAID Claude plan (Pro, Max, Team or Enterprise)
 echo  or an Anthropic Console account with API billing. The free Claude
 echo  plan does not include Claude Code.
+echo ------------------------------------------------------------------
+echo  PRIVACY: The kit's local scripts store and process owner data in
+echo  your kit folder and do not send owner data to public map servers.
+echo  However, when Claude Code reads file contents or includes them in
+echo  prompts, that information may be transmitted to Anthropic for
+echo  processing under your Claude plan or API account terms and
+echo  settings. Only use this workflow with data you are authorized to
+echo  share with that service. Keep API keys in the local .env file and
+echo  never paste them into chat.
+echo  Permission rules in .claude/settings.json are a safeguard, not a
+echo  guarantee. Details: SECURITY.md
 echo ==================================================================
 set "HERE=%~dp0"
 echo Folder: %HERE%
@@ -39,6 +51,7 @@ set "PYTHON_MANAGER_CONFIRM=false"
 set "PY="
 if defined EBRE_PYTHON call :try "%EBRE_PYTHON%"
 call :try py -3
+for %%V in (3.15 3.14 3.13 3.12 3.11 3.10) do call :try py -%%V
 for /f "delims=" %%P in ('where python 2^>nul') do call :try "%%P"
 for /f "delims=" %%P in ('where python3 2^>nul') do call :try "%%P"
 if "%EBRE_PATH_ONLY%"=="1" goto searched
@@ -106,10 +119,18 @@ if "%CHECK%"=="0" pause
 exit /b 1
 
 :nopython
+where pymanager >nul 2>nul
+if "%errorlevel%"=="0" goto nopyruntime
 echo PROBLEM: Python 3.10 or newer was not found.
 echo Checked: py -3, every python / python3 on PATH, including the Microsoft Store shortcuts, and the usual install folders.
 echo FIX: install Python from https://www.python.org/downloads/
 echo IMPORTANT: on the first installer screen tick "Add python.exe to PATH", then double-click this file again.
+if "%CHECK%"=="0" pause
+exit /b 1
+
+:nopyruntime
+echo Python install manager found but no Python installed. Run: py install 3.14
+echo Then double-click this file again.
 if "%CHECK%"=="0" pause
 exit /b 1
 

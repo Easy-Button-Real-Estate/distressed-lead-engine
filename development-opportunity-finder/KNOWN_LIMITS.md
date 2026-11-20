@@ -30,13 +30,21 @@ replace a survey, title search, appraisal, wetlands delineation, flood determina
   by third parties and can vanish; new lines and substations are missing. Water plants and industrial areas have
   no fallback and stay unknown. Time zones are estimated from state + ZIP and
   the phone's area code (NANPA list); area codes follow the number, not the person, so a ported or moved number
-  can point to the wrong zone. When the signals disagree the row says VERIFY calling hours. Unknown factors are left out
+  can point to the wrong zone. call_window is always an estimated window: the kit never knows where the person
+  is right now, so every reviewed call row needs hours_verified = Y. State calling hours are coded only for TX,
+  LA, MS, AL, NC, VA, MD, FL and OK (FL, OK and the non-NC/VA/MD wholesaling notes were not re-read this round);
+  other states get the federal window plus "hours not coded, VERIFY". When the signals disagree the row says
+  VERIFY calling hours. Unknown factors are left out
   of the score and shown in a banner.
 - Flood and wetlands percentages come from a 9-point sample over a square the size of the parcel, not the true
   boundary. FEMA "unmapped" is unknown, not safe. NWI is a screen, not a delineation.
 - Water / sewer is unknown unless you supply a layer. Power is distance to mapped lines, not capacity. Overlay
   zones are not checked. Zoning must be verified with the city.
-- Owner signals depend on the columns in your file; a missing column means "not checked".
+- Owner signals depend on the columns in your file; each signal is present, checked-not-present, not-checked or
+  unavailable-from-source, and a missing signal never means unmotivated.
+- Flood / wetlands / slope are looked up for the top parcels only (repeated until every tier-A and top-10 parcel
+  is checked, up to 6 rounds). A parcel still unchecked is held out of tier A.
+- Privacy: The kit's local scripts store and process owner data in your kit folder and do not send owner data to public map servers. However, when Claude Code reads file contents or includes them in prompts, that information may be transmitted to Anthropic for processing under your Claude plan or API account terms and settings. Only use this workflow with data you are authorized to share with that service. Keep API keys in the local .env file and never paste them into chat.
 
 ## Outreach
 - The kit never sends anything. Lists are blocked by default: suppression applied, calls only after your own

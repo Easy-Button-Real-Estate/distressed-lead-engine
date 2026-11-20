@@ -780,7 +780,7 @@ def test_repo_is_ascii_and_has_no_secrets():
 
 
 def test_round4_normalization_timezones_and_drop_folder():
-    import _common, suppression, timezones, time as _t
+    import _common, suppression, timezones, datetime as _dt
     for p in ("(919) 555-0134", "9195550134", "+19195550134", "1-919-555-0134"):
         assert _common.clean_phone(p) == "9195550134", p
     assert _common.norm_address("123 Main St") == _common.norm_address("123 MAIN STREET")
@@ -790,13 +790,21 @@ def test_round4_normalization_timezones_and_drop_folder():
     assert sup.owner("SOMEONE ELSE", ["123 Main St"], "mail")
     assert not sup.owner("SOMEONE ELSE", ["1234 Main St"], "mail")
     d = out("dropdir")
-    assert suppression.drop_folder(os.path.join(d, "nope")) == ([], None)
+    assert suppression.drop_folder(os.path.join(d, "nope"))[:2] == ([], None)
     p = os.path.join(d, "dnc_export.csv")
     skip_trace.write_rows(p, [{"phone": "(919) 555-0134", "address": "", "owner": "", "date": "2026-11-01", "channel": "all", "reason": "x"}])
-    files, age = suppression.drop_folder(d)
-    assert files == [p] and age < 1
-    os.utime(p, (_t.time() - 9 * 86400, _t.time() - 9 * 86400))
-    assert suppression.drop_folder(d)[1] > suppression.DROP_STALE_DAYS
+    files, age, info = suppression.drop_folder(d)
+    assert files == [p] and age is None and info["undated"], "an export with no generated date is never current"
+    assert suppression.freshness_reason(age, info)
+    today = _dt.date.today()
+    with open(p + suppression.META_SUFFIX, "w") as f:
+        json.dump({"export_date": today.isoformat()}, f)
+    files, age, info = suppression.drop_folder(d)
+    assert files == [p] and age == 0 and suppression.freshness_reason(age, info) == ""
+    with open(p + suppression.META_SUFFIX, "w") as f:
+        json.dump({"export_date": (today - _dt.timedelta(days=9)).isoformat()}, f)
+    os.utime(p, None)  # copied in today: the file's own date must not matter
+    assert suppression.drop_folder(d)[1] == 9 > suppression.DROP_STALE_DAYS
     assert timezones.estimate("NC", "27601")[0].startswith("Eastern")
     z, basis = timezones.estimate("FL", "32501")  # Pensacola: Central
     assert z.startswith("Central") and "two time zones" in basis, (z, basis)
@@ -864,7 +872,41 @@ def test_round4_start_here_buyer_package_and_stale_suppression():
     assert bp and list(bp[0].keys()) == run_pipeline.BUYER_COLS
     for col in bp[0]:
         assert not any(w in col for w in ("owner", "mail", "phone", "email")), col
+    import suppression, datetime as _dt
+    today = _dt.date.today()
+    # an undated export copied in today does not count
     skip_trace.write_rows(os.path.join(sup, "today.csv"), [{"phone": "6145550999", "address": "", "owner": "", "date": "2026-11-19", "channel": "all", "reason": "x"}])
+    quiet(run_pipeline.main, argv)
+    assert "SUPPRESSION LIST MAY BE OUT OF DATE" in open(os.path.join(d, "START_HERE.md")).read()
+    os.remove(os.path.join(sup, "today.csv"))
+    # an OLD export (its header says it was generated 30 days ago) copied in today must not pass: fail closed
+    src = out("r4src")
+    old_exp = os.path.join(src, "crm_optouts.csv")
+    with open(old_exp, "w") as f:
+        f.write(f"# Exported: {(today - _dt.timedelta(days=30)).isoformat()}\nphone,owner,date,channel,reason\n6145550999,,2026-10-01,all,x\n")
+    quiet(suppression.main, ["import", old_exp, "--folder", sup, "--source", "CRM", "--by", "test"])
+    assert os.path.getmtime(os.path.join(sup, "crm_optouts.csv")) > _dt.datetime.now().timestamp() - 600, "copied today"
+    quiet(run_pipeline.main, argv)
+    start = open(os.path.join(d, "START_HERE.md")).read()
+    assert "SUPPRESSION LIST MAY BE OUT OF DATE" in start and "generated 30 days ago" in start, "an old export imported today must not pass"
+    assert os.path.exists(os.path.join(d, "marketing", "PHONE_AND_SMS_HELD.txt"))
+    # the file says 30 days old: entering today's date on import does not override what the file says
+    quiet(suppression.main, ["import", old_exp, "--folder", sup, "--export-date", today.isoformat()])
+    assert suppression.drop_folder(sup)[1] == 30
+    # an undated export: import refuses without --export-date, then records the date the user enters
+    und = os.path.join(src, "dialer_dnc.csv")
+    skip_trace.write_rows(und, [{"phone": "6145550998", "address": "", "owner": "", "date": "", "channel": "call", "reason": "x"}])
+    try:
+        quiet(suppression.main, ["import", und, "--folder", sup])
+        raise AssertionError("import without a generated date must refuse")
+    except SystemExit as e:
+        assert "generated date" in str(e) and not os.path.exists(os.path.join(sup, "dialer_dnc.csv"))
+    try:
+        quiet(suppression.main, ["import", und, "--folder", sup, "--export-date", (today + _dt.timedelta(days=2)).isoformat()])
+        raise AssertionError("a future export date must refuse")
+    except SystemExit as e:
+        assert "future" in str(e)
+    quiet(suppression.main, ["import", und, "--folder", sup, "--export-date", (today - _dt.timedelta(days=1)).isoformat(), "--source", "dialer"])
     quiet(run_pipeline.main, argv)
     start = open(os.path.join(d, "START_HERE.md")).read()
     assert "SUPPRESSION LIST MAY BE OUT OF DATE" not in start
@@ -944,9 +986,10 @@ def test_round4_small_items():
 def test_round4_setup_files():
     m = open(os.path.join(ROOT, "start-mac.command")).read()
     w = open(os.path.join(ROOT, "start-windows.bat")).read()
-    for t in ("python3.13", "python3.10", "/Library/Frameworks/Python.framework", '"/usr/bin/python3" ] && continue', "--check", "EBRE-Land", "Allow"):
+    for t in ("python3.15", "python3.13", "python3.10", "for v in 3.15 3.14", "/Library/Frameworks/Python.framework", '"/usr/bin/python3" ] && continue', "--check", "EBRE-Land", "Allow"):
         assert t in m, t
-    for t in ("py -3", "WindowsApps", "Right-click the zip ^> Extract All first", "/check", "C:\\EBRE-Land", "\\AppData\\Local\\Temp\\"):
+    for t in ("py -3", "py -%%V", "(3.15 3.14 3.13 3.12 3.11 3.10)", "where pymanager", ":nopyruntime",
+              "Python install manager found but no Python installed. Run: py install 3.14", "WindowsApps", "Right-click the zip ^> Extract All first", "/check", "C:\\EBRE-Land", "\\AppData\\Local\\Temp\\"):
         assert t in w, t
     st = json.load(open(os.path.join(ROOT, ".claude", "settings.json")))
     assert "Bash(.venv/bin/python scripts/*)" in st["permissions"]["allow"] and "Read(./.env)" in st["permissions"]["deny"]
@@ -955,13 +998,16 @@ def test_round4_setup_files():
         hdr = open(os.path.join(ROOT, "templates", t)).read().strip()
         assert hdr and "\n" not in hdr, t  # header only, no rows
     sec = open(os.path.join(ROOT, "SECURITY.md")).read()
-    assert "What the starter runs" in sec and "What stays local" in sec and "SHA256SUMS.txt" in sec
+    assert "What the starter runs" in sec and "Where owner data goes" in sec and "safeguards, not guarantees" in sec and "SHA256SUMS.txt" in sec
+    assert "What stays local" not in sec and "never uploads" not in sec
     # the CI workflow lives in the source repo (../.github/workflows/), not in the zip
     wfp = os.path.join(os.path.dirname(ROOT), ".github", "workflows", "dev-skill-clean-machine.yml")
     assert not os.path.exists(os.path.join(ROOT, ".github"))
     if os.path.exists(wfp):
         wf = open(wfp).read()
-        for t in ("macos-latest", "windows-latest", '"3.10", "3.13", "3.14"', "./start-mac.command --check", "cmd /c start-windows.bat /check",
+        for t in ("macos-latest", "windows-latest", '"3.10", "3.13", "3.14", "3.15"', "allow-prereleases: true",
+                  "Python install manager found but no Python installed. Run: py install 3.14", "tags:", '"v*"', "branches:",
+                  "development-opportunity-finder-${{ steps.ref.outputs.name }}", "./start-mac.command --check", "cmd /c start-windows.bat /check",
                   "ditto -xk", "Expand-Archive", "EBRE Land (1)", "sha256", "test_pipeline.py", "test_finder.py", "--demo",
                   "Python 3.10 or newer was not found", "inside the zip or a temporary folder", "Python.PythonInstallManager",
                   "upload-artifact", "workflow_dispatch", "setup_check.txt", "KIT: development-opportunity-finder"):
@@ -1125,20 +1171,43 @@ def test_round5_call_window_area_code_and_verify():
     import area_codes
     import timezones
     assert len(area_codes.AREA_CODES) > 300 and area_codes.AREA_CODES["919"][0] == "NC"
+    E, SUN = timezones.ESTIMATED, " Mon-Sat (Sundays / holidays: see sunday_holiday_rule)"
+    LOC = timezones.LOCATION_NOT_ESTABLISHED
     z, _b = timezones.estimate("NC", "27601")
     w, basis, chk = timezones.call_window("NC", z, ["9195550134"])
-    assert w == "8am-9pm Eastern" and chk.startswith("ok"), (w, chk)
+    assert w == E + "8am-9pm Eastern" + SUN and chk.startswith("ok (estimate)") and LOC in chk, (w, chk)
+    assert "G.S. 75-102" in basis or "75-102" in basis
     z, _b = timezones.estimate("FL", "33101")
     w, basis, chk = timezones.call_window("FL", z, ["8505550134"])  # 850 covers Eastern and Central; FL ends at 8pm
-    assert w == "9am-8pm Eastern (= 8am-7pm Central)" and chk.startswith("VERIFY") and "FL" in basis, (w, chk)
+    assert w == E + "9am-8pm Eastern (= 8am-7pm Central)" + SUN and chk.startswith("VERIFY") and "FL" in basis, (w, chk)
     z, _b = timezones.estimate("CA", "94105")
     w, basis, chk = timezones.call_window("CA", z, ["2125550134"])  # NY number, CA owner: legal in both
-    assert w == "8am-6pm Pacific (= 11am-9pm Eastern)" and chk.startswith("VERIFY"), (w, chk)
+    assert w == E + "8am-6pm Pacific (= 11am-9pm Eastern)" + SUN and chk.startswith("VERIFY"), (w, chk)
+    assert "federal window; CA, NY hours not coded, VERIFY" in chk
+    # an uncoded state never gets "ok", even when the signals agree
     w, basis, chk = timezones.call_window("AZ", timezones.estimate("AZ", "85001")[0], ["6025550134"])
-    assert chk.startswith("ok") and w.startswith("8am-9pm"), (w, chk)
+    assert chk.startswith("VERIFY") and "federal window; AZ hours not coded, VERIFY" in chk and w.startswith(E + "8am-9pm"), (w, chk)
+    w, basis, chk = timezones.call_window("OH", timezones.estimate("OH", "43215")[0], ["6145550134"])
+    assert chk.startswith("VERIFY") and "OH hours not coded" in chk
     assert timezones.call_window("NC", "Eastern", [])[2].startswith("ok so far")  # no phone yet: not "agree"
     w, basis, chk = timezones.call_window("", None, [])
     assert chk.startswith("VERIFY")
+    # every coded state: source, last-checked date, and the window it produces
+    for st in ("TX", "LA", "MS", "AL", "NC", "VA", "MD"):
+        h = timezones.STATE_HOURS[st]
+        assert h["source"] and h["checked"] == "2026-11-19" and h["note"], st
+    for st, zp, ph, want in (("TX", "75201", "2145550134", "9am-9pm Central"), ("LA", "70112", "5045550134", "8am-8pm Central"),
+                             ("MS", "39201", "6015550134", "9am-8pm Central"), ("AL", "35203", "2055550134", "8am-8pm Central"),
+                             ("VA", "23219", "8045550134", "8am-9pm Eastern"), ("MD", "21201", "4105550134", "8am-8pm Eastern")):
+        w, basis, chk = timezones.call_window(st, timezones.estimate(st, zp)[0], [ph])
+        assert w == E + want + SUN and chk.startswith("ok (estimate)") and "last checked 2026-11-19" in basis, (st, w, chk)
+    # Sunday / holiday flag
+    assert timezones.sunday_holiday("TX") == "TX: Sunday noon-9pm only; no state holiday rule coded"
+    assert "no calls on Sunday" in timezones.sunday_holiday("LA") and "legal holidays" in timezones.sunday_holiday("LA")
+    assert "no calls on Sunday" in timezones.sunday_holiday("MS") and "no calls on Sunday" in timezones.sunday_holiday("AL")
+    assert "legal holidays" in timezones.sunday_holiday("AL")
+    assert timezones.sunday_holiday("OH") == "OH: Sunday / holiday rules not coded, VERIFY"
+    assert "TX" in timezones.sunday_holiday("NC", ["2145550134"])  # a TX area code brings in TX's Sunday rule
     assert "power, predictive or multi-line" in timezones.MANUALLY_DIALED
     tm = open(os.path.join(ROOT, "templates", "call_review.csv")).read()
     assert "hours_verified" in tm
@@ -1161,8 +1230,8 @@ def test_round5_suppression_cumulative_and_manual_add():
     assert p == p2 and len(rows(p)) == 2 and rows(p)[0]["phone"] == "6145550102" and rows(p)[0]["logged_by"] == "Pat"
     quiet(suppression.main, ["add", "--address", "9 Sample Rd", "--folder", folder, "--by", "Pat"])
     assert len(rows(p)) == 3
-    files, age = suppression.drop_folder(folder)
-    assert files == [p] and age is not None and age < 1
+    files, age, info = suppression.drop_folder(folder)
+    assert files == [p] and age is None, "manual_requests.csv is applied but is not a current system export"
     src = open(os.path.join(ROOT, "scripts", "suppression.py")).read()
     assert "never remove" in src.lower() and "Refusing to shrink" in src
     assert suppression.OPT_OUT_SENTENCE == ("Import the latest opt-outs and do-not-contact requests from every system where your team "
@@ -1326,9 +1395,10 @@ def test_round5_pipeline_enrichment_and_start_here():
     def fake_enrich(argv):
         a = dict(zip(argv[::2], argv[1::2]))
         src = rows(a["--input"])
-        seen["first"] = [r.get("apn") for r in src[: int(a["--limit"])]]
+        seen.setdefault("calls", []).append([r.get("apn") for r in src[: int(a["--limit"])]])
         for r in src[: int(a["--limit"])]:
-            r.update(fema_flood_pct="0", fema_zones="X", wetlands_pct_est="0", slope_buildable_pct="100", constraint_check="ok")
+            r.update(fema_flood_pct="0", fema_zones="X", wetlands_pct_est="0", slope_pct_est="2", buildable_pct_est="100",
+                     constraint_check="ok")
         skip_trace.write_rows(a["--output"], src, list(dict.fromkeys(k for r in src for k in r)))
         return {"checked": int(a["--limit"]), "ok": int(a["--limit"]), "output": a["--output"], "nwi_zero_everywhere": False}
     run_pipeline.enrich_constraints.main = fake_enrich
@@ -1340,11 +1410,26 @@ def test_round5_pipeline_enrichment_and_start_here():
         quiet(run_pipeline.main, argv)
     finally:
         run_pipeline.enrich_constraints.main = real
-    first_rank = [x["apn"] for x in rows(os.path.join(d, "parcels_ranked.csv")) if x["rank"]]
-    assert seen["first"] and set(seen["first"]) <= set(first_rank[:6])
+    ranked = [x for x in rows(os.path.join(d, "parcels_ranked.csv")) if x["rank"]]
+    first = seen["calls"][0]
+    assert len(first) == 3, "round 1 looks up the --enrich-top parcels"
+    assert len(seen["calls"]) >= 2, "the top 10 after rescoring were not all checked in round 1, so it must repeat"
+    # Blocker 2: after the loop, no tier-A or top-10 row may have a blank flood, wetlands or slope value
+    must = [x for x in ranked if x["tier"].startswith("A")] + ranked[:10]
+    assert must
+    for x in must:
+        for k in ("flood", "wetlands", "slope"):
+            assert x[k + "_screen"].strip(), (x["apn"], x["rank"], x["tier"], k)
+        assert not x["constraints_unchecked"], x["apn"]
+    looked = {apn for call in seen["calls"] for apn in call}
+    assert {x["apn"] for x in must} <= looked
+    assert all(x["tier"] != "A - call first" for x in ranked) and any(x["tier"] == "A - research first" for x in ranked)
     assert os.path.exists(os.path.join(d, "parcels_enriched.csv"))
     start = open(os.path.join(d, "START_HERE.md")).read()
     assert "looked up for the top 3" in start
+    from _common import PRIVACY_PARAGRAPH, SKIPTRACE_LINE
+    assert PRIVACY_PARAGRAPH in " ".join(start.split()) and SKIPTRACE_LINE in start
+    assert "A - research first" in start or "research first" in start
     assert build_marketing_lists.OPT_OUT_SENTENCE in start and "every phone and text output is held" in start
     assert os.path.exists(os.path.join(d, "marketing", "PHONE_AND_SMS_HELD.txt"))
     assert not os.path.exists(os.path.join(d, "marketing", "cold_call.csv"))
@@ -1366,6 +1451,213 @@ def test_round5_batchdata_experimental_and_docs():
     assert "EXPERIMENTAL" in kl and "has not been run yet" in kl
     print("round-5 BatchData label / docs ok")
 
+
+
+# ------------------------------------------------------------------ round 6
+def _nc_owner(name):
+    """Sample run with one owner (SAMPLE OWNER 38) moved to Raleigh NC with a 919 number and a complete DNC scrub."""
+    d, _ = _scored(name)
+    ranked = os.path.join(d, "parcels_ranked.csv")
+    rk = rows(ranked)
+    for x in rk:
+        if x["owner"].upper().startswith("SAMPLE OWNER 38") and "43000" in x["mail_zip"]:
+            x["mail_state"], x["mail_zip"], x["mail_city"] = "NC", "27601", "RALEIGH"
+    skip_trace.write_rows(ranked, rk, list(rk[0].keys()))
+    quiet(skip_trace.main, ["export", "--ranked", ranked])
+    quiet(skip_trace.main, ["import", "--ranked", ranked, "--results", os.path.join(S, "sample_skiptrace_results.csv")])
+    tr = os.path.join(d, "skiptrace", "owners_traced.csv")
+    t = rows(tr)
+    for x in t:
+        if x["owner_key"].startswith("sampleowner38|"):
+            x["phone1"], x["phone1_type"], x["phone1_dnc"] = "9195550123", "Mobile", ""
+    skip_trace.write_rows(tr, t, list(t[0].keys()))
+    scrub = os.path.join(d, "scrub.csv")
+    skip_trace.write_rows(scrub, [{"phone": "9195550123", "dnc": "N", "scrub_date": "2026-11-10", "lists_checked": "federal; state:none; internal",
+                                   "scrubbed_by": "Pat (test)", "vendor": "self (own SAN)"}])
+    return d, ["--ranked", ranked, "--traced", tr, "--as-of", "2026-11-19", "--dnc-scrubbed", scrub,
+                "--state-file", os.path.join(d, "state", "seen_owners.json")]
+
+
+def test_round6_hours_verified_required_even_when_ok():
+    d, base = _nc_owner("r6hv")
+    m = quiet(build_marketing_lists.main, base)
+    r = [x for x in m["call"] if x["phone1"] == "9195550123"][0]
+    assert r["call_window"].startswith("estimated window: 8am-9pm Eastern") and "verified" not in r["call_window"].lower()
+    assert r["call_window_check"].startswith("ok (estimate)") and "current location not established" in r["call_window_check"]
+    assert r["sunday_holiday_rule"].startswith("NC:") and r["hours_verified"] == ""
+    rv = os.path.join(d, "review.csv")
+    skip_trace.write_rows(rv, [{"phone": "9195550123", "call_eligibility": "reviewed_for_campaign", "reviewed_by": "Pat", "review_date": "2026-11-18"}])
+    m = quiet(build_marketing_lists.main, base + ["--call-review", rv])
+    r = [x for x in m["call"] if x["phone1"] == "9195550123"][0]
+    assert r["call_eligibility"] == "needs_review", "an 'ok' estimate still needs a person to verify local time"
+    assert "add hours_verified = Y" in r["call_window_check"]
+    skip_trace.write_rows(rv, [{"phone": "9195550123", "call_eligibility": "reviewed_for_campaign", "reviewed_by": "Pat", "review_date": "2026-11-18",
+                                "hours_verified": "Y"}])
+    m = quiet(build_marketing_lists.main, base + ["--call-review", rv])
+    r = [x for x in m["call"] if x["phone1"] == "9195550123"][0]
+    assert r["call_eligibility"] == "reviewed_for_campaign" and r["hours_verified"] == "Y"
+    cc = rows(os.path.join(d, "marketing", "cold_call.csv"))
+    assert {"sunday_holiday_rule", "hours_verified", "motivation_note", "signals_not_checked"} <= set(cc[0].keys())
+    comp = open(os.path.join(d, "marketing", "COMPLIANCE.md")).read()
+    assert "Calling hours coded in this kit" in comp
+    for st in ("TX", "LA", "MS", "AL", "NC", "VA", "MD"):
+        assert f"| {st} |" in comp and "2026-11-19" in comp, st
+    assert "hours not coded, VERIFY" in comp
+    from _common import PRIVACY_PARAGRAPH
+    assert PRIVACY_PARAGRAPH in " ".join(comp.split()) and "safeguard, not a guarantee" in comp
+    print("round-6 hours_verified / coded hours ok")
+
+
+def test_round6_state_check_record_nc_va_md():
+    import state_rules, campaign_kit
+    for st in ("NC", "VA", "MD"):
+        n = state_rules.STATE_NOTES[st]
+        assert n["checked"] == state_rules.CHECKED == "2026-11-19" and n["source"] and n["law"] and n["license"] and n["disclosures"], st
+    assert "93A" in state_rules.STATE_NOTES["NC"]["source"] and "54.1-2100" in state_rules.STATE_NOTES["VA"]["source"]
+    assert "10-715" in state_rules.STATE_NOTES["MD"]["source"]
+    assert all(state_rules.STATE_NOTES[s]["checked"] == state_rules.CARRIED for s in ("PA", "IL", "OH", "OK", "TX"))
+    for f in ("law_that_applies", "licensing_needed", "disclosures_apply", "verified_by", "verified_on"):
+        assert f in state_rules.RECORD_FIELDS, f
+    d, base = _nc_owner("r6sc")
+    quiet(build_marketing_lists.main, base)
+    quiet(campaign_kit.main, ["--marketing-dir", os.path.join(d, "marketing"), "--output-dir", os.path.join(d, "campaign"), "--state", "NC,VA,MD"])
+    rec = rows(os.path.join(d, "campaign", "state_check_record.csv"))
+    got = {r["state"]: r for r in rec}
+    for st in ("NC", "VA", "MD"):
+        assert st in got, (st, list(got))
+        r = got[st]
+        assert r["kit_source"] and r["kit_last_checked"] == "2026-11-19" and r["why_in_scope"]
+        assert r["verified_by"] == "" and r["verified_on"] == "" and r["law_that_applies"] == "", "the user fills these in"
+    chk = open(os.path.join(d, "campaign", "STATE_AND_JURISDICTION_CHECK.md")).read()
+    assert "state_check_record.csv" in chk and "verified_by" in chk
+    comp = open(os.path.join(d, "marketing", "COMPLIANCE.md")).read()
+    assert "North Carolina" in comp and "Virginia" in comp and "Maryland" in comp
+    cl = open(os.path.join(d, "campaign", "campaign_checklist.md")).read()
+    from _common import DNC_NOT_CONSENT, SKIPTRACE_LINE
+    assert DNC_NOT_CONSENT in cl and SKIPTRACE_LINE in cl and "10DLC" in cl
+    print("round-6 state check record ok")
+
+
+def test_round6_motivation_signal_states():
+    import build_marketing_lists as bml
+    d = out("r6sig")
+    src = rows(os.path.join(S, "sample_parcels.csv"))
+    cols = [c for c in src[0].keys() if c != "mortgage"]          # no mortgage column: not-checked
+    for i, r in enumerate(src):
+        r.pop("mortgage", None)
+        if i % 2 == 0:
+            r["tax_delinquent"] = ""                                  # column present, value blank: unavailable-from-source
+    p = os.path.join(d, "parcels.csv")
+    skip_trace.write_rows(p, src, cols)
+    quiet(build_buy_box.main, ["--sales", os.path.join(S, "sample_developer_sales.csv"), "--as-of", "2026-11-01", "--output-dir", d])
+    quiet(score_parcels.main, ["--input", p, "--infra", os.path.join(S, "sample_infrastructure.csv"), "--use-case", "single_family",
+                               "--buy-box", os.path.join(d, "buy_box.json"), "--output-dir", d])
+    rk = rows(os.path.join(d, "parcels_ranked.csv"))
+    states = set(score_parcels.SIG_STATES)
+    for x in rk:
+        for k in ("long_hold", "out_of_state", "out_of_county", "no_mortgage", "tax_delinquent", "estate_heirs", "trust", "multiple_owners"):
+            assert x["sig_" + k] in states, (k, x["sig_" + k])
+        assert x["sig_no_mortgage"] == "not-checked"
+        assert "no mortgage" in x["signals_not_checked"]
+    assert any(x["sig_tax_delinquent"] == "unavailable-from-source" for x in rk)
+    assert any(x["sig_tax_delinquent"] in ("present", "checked-not-present") for x in rk)
+    # owner level: present wins; checked-not-present only when every parcel was checked
+    assert bml.merge_signal(bml.merge_signal(None, "checked-not-present"), "present") == "present"
+    assert bml.merge_signal(bml.merge_signal(None, "checked-not-present"), "not-checked") == "not-checked"
+    assert bml.merge_signal(bml.merge_signal(None, "checked-not-present"), "unavailable-from-source") == "unavailable-from-source"
+    assert bml.merge_signal(bml.merge_signal(None, "checked-not-present"), "checked-not-present") == "checked-not-present"
+    note = bml.motivation_note({"sig": {k: ("not-checked" if k == "no_mortgage" else "checked-not-present") for k in bml.SIG_KEYS}})
+    assert "not 'unmotivated'" in note and "no signal present" in note
+    assert bml.motivation_note({"sig": {}}).count("not checked") >= 1  # nothing known: never "unmotivated"
+    # a missing signal never reads as unmotivated in the owner-level exports
+    quiet(skip_trace.main, ["export", "--ranked", os.path.join(d, "parcels_ranked.csv")])
+    quiet(skip_trace.main, ["import", "--ranked", os.path.join(d, "parcels_ranked.csv"), "--results", os.path.join(S, "sample_skiptrace_results.csv")])
+    m = quiet(build_marketing_lists.main, ["--ranked", os.path.join(d, "parcels_ranked.csv"), "--traced",
+                                           os.path.join(d, "skiptrace", "owners_traced.csv"), "--as-of", "2026-11-19"])
+    crm = rows(os.path.join(d, "marketing", "crm_import.csv"))
+    for x in crm:
+        assert x["sig_no_mortgage"] == "not-checked" and "no mortgage" in x["signals_not_checked"], x["owner"]
+        assert "unmotivated" not in x["motivation_note"].replace("not 'unmotivated'", ""), x["motivation_note"]
+    mail = rows(os.path.join(d, "marketing", "mail_list.csv")) if os.path.exists(os.path.join(d, "marketing", "mail_list.csv")) else []
+    for x in mail:
+        if "sig_no_mortgage" in x:
+            assert x["sig_no_mortgage"] == "not-checked"
+    print("round-6 motivation signal states ok")
+
+
+def test_round6_privacy_and_wording_in_every_doc():
+    from _common import PRIVACY_PARAGRAPH, SKIPTRACE_LINE, DNC_NOT_CONSENT
+    assert PRIVACY_PARAGRAPH == ("The kit's local scripts store and process owner data in your kit folder and do not send owner data to public "
+                                 "map servers. However, when Claude Code reads file contents or includes them in prompts, that information may "
+                                 "be transmitted to Anthropic for processing under your Claude plan or API account terms and settings. Only use "
+                                 "this workflow with data you are authorized to share with that service. Keep API keys in the local .env file "
+                                 "and never paste them into chat.")
+    assert SKIPTRACE_LINE == "Bring skip-trace results back through the kit before dialing. Never load the vendor file straight into your dialer."
+    flat = lambda t: " ".join(t.split())
+    for doc in ("SECURITY.md", "SETUP.md", "SKILL.md", "CLAUDE.md", "README.md", "KNOWN_LIMITS.md",
+                os.path.join(".claude", "skills", "development-opportunity-finder", "SKILL.md")):
+        t = flat(open(os.path.join(ROOT, doc)).read())
+        assert PRIVACY_PARAGRAPH in t, doc
+    bad = ("stays on this computer", "stay on this computer", "stays on your computer", "data stays on", "never uploads",
+           "stays in this folder", "what stays local", "nothing leaves")
+    for root, dirs, files in os.walk(ROOT):
+        dirs[:] = [x for x in dirs if x not in ("__pycache__", ".git", "out", "out_demo", ".venv", "tests")]
+        for fn in files:
+            if fn.endswith((".md", ".py", ".txt", ".command", ".bat", ".json")):
+                low = open(os.path.join(root, fn), encoding="latin-1").read().lower()
+                for b in bad:
+                    assert b not in low, (fn, b)
+    for st in ("start-mac.command", "start-windows.bat"):
+        t = open(os.path.join(ROOT, st), encoding="latin-1").read()
+        head = t.split("Folder:")[0]  # the first screen, before anything runs
+        echo = flat(" ".join(l.split("echo", 1)[1].strip().strip('"') for l in head.splitlines() if l.strip().startswith("echo")))
+        assert flat("PRIVACY: " + PRIVACY_PARAGRAPH) in echo, st
+        assert "safeguard, not a guarantee" in echo, st
+    for doc in ("SECURITY.md", "SKILL.md", "CLAUDE.md", "SETUP.md"):
+        t = flat(open(os.path.join(ROOT, doc)).read())
+        assert "not a guarantee" in t or "not guarantees" in t, doc
+    for doc in ("SKILL.md", "SETUP.md", "CLAUDE.md"):
+        assert SKIPTRACE_LINE in flat(open(os.path.join(ROOT, doc)).read()), doc
+    assert SKIPTRACE_LINE in open(os.path.join(ROOT, "scripts", "skip_trace.py")).read() or "SKIPTRACE_LINE" in open(os.path.join(ROOT, "scripts", "skip_trace.py")).read()
+    for doc in ("SKILL.md", "SETUP.md"):
+        assert DNC_NOT_CONSENT in flat(open(os.path.join(ROOT, doc)).read()), doc
+    assert "10DLC registration is a separate requirement" in DNC_NOT_CONSENT and "A DNC scrub is not consent" in DNC_NOT_CONSENT
+    setup = open(os.path.join(ROOT, "SETUP.md")).read()
+    assert "Open Anyway" in setup and "Control-click" in setup and "no longer" in setup and "to be confirmed by the home-machine run" in setup
+    assert setup.count("[Screenshot placeholder") >= 6 and "More info" in setup and "Run anyway" in setup
+    sc = open(os.path.join(ROOT, "references", "scoring.md")).read()
+    assert "A - research first" in sc and "call first" not in sc
+    # nothing a test or a mistyped flag wrote may sit in the kit folder (it would ship in the zip)
+    allowed = {".claude", ".gitignore", "CLAUDE.md", "KNOWN_LIMITS.md", "LICENSE", "README.md", "SECURITY.md", "SETUP.md",
+               "SHA256SUMS.txt", "SKILL.md", "config", "dof", "references", "requirements.txt", "samples", "scripts",
+               "start-mac.command", "start-windows.bat", "suppress", "templates", "tests", "tools",
+               ".venv", "out", "out_demo", "output", "setup_check.txt", "__pycache__", ".DS_Store", "development-opportunity-finder.zip"}
+    extra = sorted(set(os.listdir(ROOT)) - allowed)
+    assert not extra, f"unexpected files in the kit folder: {extra}"
+    print("round-6 privacy / wording ok")
+
+
+def test_round6_skiptrace_line_buy_box_size_and_start_here():
+    d = out("r6bb")
+    quiet(build_buy_box.main, ["--sales", os.path.join(S, "sample_developer_sales.csv"), "--as-of", "2026-11-01", "--min-sales", "50",
+                               "--output-dir", d])
+    box = json.load(open(os.path.join(d, "buy_box.json")))
+    size = [c for c in box["criteria"] if c["criterion"].startswith("Size")][0]
+    pre = json.load(open(os.path.join(ROOT, "references", "use-cases.json")))
+    assert size["value"].startswith("EBRE default ") and "county purchases seen; 50 needed to set from data" in size["value"], size["value"]
+    d2 = out("r6bb2")
+    quiet(build_buy_box.main, ["--sales", os.path.join(S, "sample_developer_sales.csv"), "--as-of", "2026-11-01", "--output-dir", d2])
+    b2 = json.load(open(os.path.join(d2, "buy_box.json")))
+    s2 = [c for c in b2["criteria"] if c["criterion"].startswith("Size")][0]
+    assert s2["value"].startswith(f"{b2['acres']['min']}-{b2['acres']['max']} ac from your sales"), s2["value"]
+    from _common import SKIPTRACE_LINE
+    d3 = out("r6st")
+    quiet(build_buy_box.main, ["--sales", os.path.join(S, "sample_developer_sales.csv"), "--as-of", "2026-11-01", "--output-dir", d3])
+    quiet(score_parcels.main, ["--input", os.path.join(S, "sample_parcels.csv"), "--infra", os.path.join(S, "sample_infrastructure.csv"),
+                               "--use-case", "single_family", "--buy-box", os.path.join(d3, "buy_box.json"), "--output-dir", d3])
+    quiet(skip_trace.main, ["export", "--ranked", os.path.join(d3, "parcels_ranked.csv")])
+    assert SKIPTRACE_LINE in open(os.path.join(d3, "skiptrace", "README_UPLOAD.txt")).read()
+    print("round-6 skip-trace line / buy-box size ok")
 
 if __name__ == "__main__":
     try:

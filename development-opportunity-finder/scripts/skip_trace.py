@@ -34,7 +34,7 @@ Usage:
 import argparse, json, os, re, sys, time, urllib.parse, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import clean_phone, norm, num, pick, read_rows, split_owner, urlopen, write_rows, yes  # noqa: E402
+from _common import SKIPTRACE_LINE, clean_phone, norm, num, pick, read_rows, split_owner, urlopen, write_rows, yes  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 TEMPLATES = json.load(open(os.path.join(HERE, "..", "references", "skiptrace-templates.json")))
@@ -154,7 +154,8 @@ def cmd_export(a):
                 "Each skiptrace_upload_<provider>.csv follows that provider's commonly used column names as of Nov 2026.\n"
                 "Providers change their templates. Before you upload, download your provider's current template and map\n"
                 "or rename the columns to match. Owner Key must come back in the results file so they can be matched.\n"
-                f"Owners left out because they are on your suppression list: {len(skipped_sup)}.\n")
+                f"Owners left out because they are on your suppression list: {len(skipped_sup)}.\n\n"
+                + SKIPTRACE_LINE + "\n(skip_trace.py import, then build_marketing_lists.py: suppression, DNC scrub and calling-hour checks happen there.)\n")
     import datetime as _dt
     with open(os.path.join(out, "export_log.json"), "w") as f:
         json.dump({"exported_on": _dt.date.today().isoformat(), "status": "exported - NOT traced until results are imported",
@@ -167,6 +168,7 @@ def cmd_export(a):
           + ("" if a.include_entities else " (not in the upload; add --include-entities to send them anyway)") + ".")
     print("Upload skiptrace_upload_<your provider>.csv (generic format, check your provider's template) to your skip-trace provider, "
           "then run: skip_trace.py import --results <their file>")
+    print(SKIPTRACE_LINE)
     return up, ent
 
 

@@ -29,7 +29,9 @@ rank_score = land_score x (0.6 + 0.4 x confidence)
 priority   = (1 - m) x rank_score + m x motivation      (m = --motivation-weight, default 0.2)
 ```
 
-Tiers: **A - call first** (priority >= 72), **B - work next** (>= 58), **C - park**. Parcels under 60% confidence get a "thin data" flag.
+Tiers: **A - research first** (priority >= 72 and flood, wetlands and slope all checked; research before any
+outreach), **B - work next** (>= 58, or >= 72 with a constraint still unchecked: "held out of tier A until
+checked"), **C - park**. Parcels under 60% confidence get a "thin data" flag.
 
 ## Owner motivation (0-100)
 

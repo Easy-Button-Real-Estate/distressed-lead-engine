@@ -20,11 +20,12 @@ so it sounds like you. Do not promise a price before you have run the numbers.
 import argparse, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import read_rows, write_rows  # noqa: E402
+from _common import DNC_NOT_CONSENT, SKIPTRACE_LINE, read_rows, write_rows  # noqa: E402
 
 LETTER_NOTE = """[Before you send: if you plan to assign this contract or double close, read the
-"State wholesaling / assignment rules" section in marketing/COMPLIANCE.md. PA, IL, VA, MD,
-OH, OK and TX have disclosure or license rules. Delete this note before printing.]
+"State wholesaling / assignment rules" section in marketing/COMPLIANCE.md and fill
+campaign/state_check_record.csv. PA, IL, VA, MD, OH, OK and TX have disclosure or license rules, and NC
+treats some wholesaling conduct as unlicensed brokerage. Delete this note before printing.]
 
 """
 
@@ -162,6 +163,7 @@ Every tool's screens look a little different. The steps below are the same idea 
 4. Approve the proof yourself before anything prints. Plan 2-3 touches about 3-4 weeks apart.
 
 ## 3. Cold calls
+0. @@SKIPTRACE_LINE@@
 1. cold_call.csv only has numbers that passed YOUR OWN National + state DNC scrub in the last 31 days. Numbers that still
    need a scrub are in cold_call_NEEDS_SCRUB.csv (call_eligibility = blocked): scrub them, then re-run with --dnc-scrubbed.
    Every row starts as call_eligibility = needs_review. A clean scrub is not permission to call: check the time_zone and
@@ -170,14 +172,17 @@ Every tool's screens look a little different. The steps below are the same idea 
    Do not use power, predictive or multi-line dialing, ringless voicemail, voicemail drops, prerecorded or AI voice:
    this kit does not support them.
 3. Map phone1, phone2, phone3 as phones and first_name / property_address / call_window so they show on screen.
-4. Load campaign/cold_call_opener.txt as the script. Call only inside each row's call_window; rows whose call_window_check
-   says VERIFY need you to check the hours and mark hours_verified = Y in your call review.
+4. Load campaign/cold_call_opener.txt as the script. call_window is an ESTIMATED window (Monday-Saturday) from the mailing
+   address and area code; the kit never knows where the phone is. Before a row can be reviewed_for_campaign, a person
+   verifies the owner's local time and marks hours_verified = Y in your call review. Rows whose call_window_check says
+   VERIFY have uncoded state hours or disagreeing signals. Check sunday_holiday_rule (TX, LA, MS and AL limit Sundays
+   and/or holidays).
 5. Log every outcome back in the CRM.
 
 ## 4. Texts (only to people who gave you consent)
 1. sms.csv only exists when you ran with --sms, --sms-sender and a consent file that confirms consent for this sender, this
    purpose and this method (consented_to, purpose, method, confirmed = Y). No file = no texting. Rows start as needs_review.
-2. Read marketing/COMPLIANCE.md first. Most texting platforms need 10DLC registration.
+2. Read marketing/COMPLIANCE.md first. Most texting platforms need 10DLC registration. @@DNC_NOT_CONSENT@@
 3. Import sms.csv, map sms_phone as the phone, first_name and property_address as merge fields.
 4. Use a first text from campaign/sms_opener.txt. Turn on automatic STOP handling, and export STOP replies into the
    kit with --stop-replies so they are suppressed everywhere.
@@ -197,11 +202,16 @@ Do campaign/STATE_AND_JURISDICTION_CHECK.md first. The items below are separate 
 - [ ] Ownership spot-checked on the county assessor site for the top 10
 - [ ] Companies and trusts researched (skiptrace/entities_to_research.csv)
 - [ ] Letter, call opener and texts edited in your voice, every [PLACEHOLDER] filled
-- [ ] State wholesaling / jurisdiction check done (campaign/STATE_AND_JURISDICTION_CHECK.md)
+- [ ] State wholesaling / jurisdiction check done (campaign/STATE_AND_JURISDICTION_CHECK.md; state_check_record.csv filled, with verified_by and verified_on)
 - [ ] DNC scrub: your own federal + state + internal scrub, with scrubbed_by and vendor, within 31 days (provider flag is not enough)
-- [ ] Calling hours: call_window on every row; VERIFY rows checked by you (hours_verified = Y)
-- [ ] Consent: texting only numbers in your consent file (consent_evidence recorded)
-- [ ] 10DLC: your texting brand and campaign registered through your texting provider
+- [ ] Calling hours: call_window is an ESTIMATED window. Verify the owner's local time on every row before it can be
+      reviewed_for_campaign (hours_verified = Y); VERIFY rows mean the state's hours are not coded or the signals disagree.
+      Check sunday_holiday_rule (some states ban Sunday or holiday calls)
+- [ ] Consent: texting only numbers in your consent file (consent_evidence recorded).
+      @@DNC_NOT_CONSENT@@
+- [ ] 10DLC: your texting brand and campaign registered through your texting provider (a separate check: registration
+      is not consent, and consent is not registration)
+- [ ] Skip trace: @@SKIPTRACE_LINE@@
 - [ ] Opt-outs: the latest opt-outs and do-not-contact requests imported from every system your team uses, plus manual requests
 - [ ] Data license verified before redistribution or resale
 - [ ] State wholesaling / assignment disclosures handled if you will assign (marketing/COMPLIANCE.md)
@@ -218,26 +228,31 @@ Do campaign/STATE_AND_JURISDICTION_CHECK.md first. The items below are separate 
 """
 
 
+LOAD = LOAD.replace("@@DNC_NOT_CONSENT@@", DNC_NOT_CONSENT).replace("@@SKIPTRACE_LINE@@", SKIPTRACE_LINE)
+CHECK = CHECK.replace("@@DNC_NOT_CONSENT@@", DNC_NOT_CONSENT).replace("@@SKIPTRACE_LINE@@", SKIPTRACE_LINE)
+
+
 ESTATE_RE = re.compile(r"\b(ESTATE OF|EST OF|HEIRS?|DECEASED|DECD|DEC'D)\b|\bESTATE\b", re.I)
 NOT_ESTATE = re.compile(r"\b(TRUST|TRUSTEES?|TR|REVOCABLE|LIVING|REAL ESTATE|LIFE ESTATE|ESTATES? (LLC|INC|CO|CORP|LP))\b", re.I)
 
 
-# State notes for the wholesaling / jurisdiction check. Not legal advice; laws change every year.
-STATE_NOTES = {
-    "PA": "Act 52 of 2024: marketing an equitable interest is brokerage that needs a license; disclosures and a seller cancellation right. Philadelphia has its own wholesaler license.",
-    "IL": "Public Act 101-0357: wholesaling more than once in 12 months needs a real estate license.",
-    "VA": "Repeatedly marketing contracts as a business can be brokerage that needs a license.",
-    "MD": "Since Oct 1, 2025: written notice to the owner that you may assign, and to the assignee that you hold only an equitable interest.",
-    "OH": "ORC 5301.95: separate, conspicuous written disclosure before contracting on residential property you intend to assign.",
-    "OK": "Predatory Real Estate Wholesaler Prohibition Act (and SB 1075): disclosure, notice to seek legal advice, 2-business-day cancellation, license to market.",
-    "TX": "SB 1577 (2023): tell buyers in writing that you hold only an equitable interest; TREC rules apply.",
-}
+# State notes for the wholesaling / jurisdiction check live in state_rules.py (each with a source and a last-checked date).
+from state_rules import RECORD_FIELDS, STATE_NOTES, one_line, record_rows  # noqa: E402,F401
+
 STATE_CHECK = """# State wholesaling and jurisdiction check (do this BEFORE you prepare the campaign)
 
 This is one item. It does not cover consent, 10DLC registration, DNC scrubbing or calling hours:
 each of those is its own check in campaign_checklist.md and marketing/COMPLIANCE.md.
 
-States in these lists (land and owner mailing addresses): {states}
+States in these lists (land and owner mailing addresses, plus any you added): {states}
+
+Fill in campaign/state_check_record.csv (one row per state). For every state it records:
+- which state's law applies (where the land is, where the owner lives, where you do business),
+- whether a real estate license is needed for what you will do (buy and close, assign, double close, market a contract),
+- whether assignment or marketing disclosures apply, and which,
+- who verified it (you, your attorney, the state real estate commission) and when.
+The kit's own notes are in the kit_note_* columns with their source and last-checked date. They are a
+starting point, not an answer: until verified_by and verified_on are filled for every state, this check is NOT done.
 
 For each state above, and the state where your business is:
 1. Wholesaling / assignment: will you buy and close, assign the contract, or double close? If you
@@ -248,7 +263,8 @@ For each state above, and the state where your business is:
 3. Estates: never imply an heir can sell. Check the probate case, the personal representative's
    appointment and letters, whether the court must approve the sale, and title.
 4. Data license: verify the data license before redistribution or resale.
-5. Write down who checked it and when: ____________________ (name, date, counsel)
+5. Record it: state_check_record.csv columns law_that_applies, licensing_needed, disclosures_apply,
+   verified_by, verified_on, counsel_or_source_used. Summary: ____________________ (name, date, counsel)
 
 Search "[state] real estate wholesaling law [year]" and confirm with a local real estate attorney.
 """
@@ -296,19 +312,30 @@ def main(argv=None):
         f.write(LOAD)
     with open(os.path.join(out, "campaign_checklist.md"), "w") as f:
         f.write(CHECK)
-    states = set()
+    why = {}
     crm_path = os.path.join(a.marketing_dir, "crm_import.csv")
     if os.path.exists(crm_path):
         for r in read_rows(crm_path):
-            for k in ("state", "mail_state"):
+            for k, label in (("state", "land is here"), ("mail_state", "owner mailing address")):
                 v = str(r.get(k) or "").strip().upper()
                 if re.fullmatch(r"[A-Z]{2}", v):
-                    states.add(v)
-    states |= {s_.strip().upper() for s_ in (a.state or "").split(",") if s_.strip()}
-    notes = "\n".join(f"   - {st}: {STATE_NOTES[st]}" for st in sorted(states) if st in STATE_NOTES) or \
+                    why.setdefault(v, [])
+                    if label not in why[v]:
+                        why[v].append(label)
+    for s_ in (a.state or "").split(","):
+        v = s_.strip().upper()
+        if v:
+            why.setdefault(v, [])
+            if "added with --state" not in why[v]:
+                why[v].append("added with --state")
+    states = set(why)
+    notes = "\n".join(f"   - {st}: {one_line(st)}" for st in sorted(states)) or \
         "   - No state-specific note in this kit for these states. That does not mean there is no rule: check."
     with open(os.path.join(out, "STATE_AND_JURISDICTION_CHECK.md"), "w") as f:
         f.write(STATE_CHECK.replace("{states}", ", ".join(sorted(states)) or "unknown (no state column)").replace("{notes}", notes))
+    write_rows(os.path.join(out, "state_check_record.csv"),
+               record_rows([(st, "; ".join(why[st])) for st in sorted(states)]) or
+               record_rows([("??", "no state column: add the land state, the owner states and your business state")]), RECORD_FIELDS)
     mail_path = os.path.join(a.marketing_dir, "mail.csv")
     merged = []
     if os.path.exists(mail_path):

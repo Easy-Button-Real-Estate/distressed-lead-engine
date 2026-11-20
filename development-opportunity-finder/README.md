@@ -6,6 +6,8 @@
 Find land that matches recent developer purchase patterns in your county, and get the owners ready to contact. It runs in Claude Code on your own computer (started by the double-click starter), on public data and your own
 PropStream export. It prepares files; it never mails, calls or texts anyone.
 
+> **Privacy.** The kit's local scripts store and process owner data in your kit folder and do not send owner data to public map servers. However, when Claude Code reads file contents or includes them in prompts, that information may be transmitted to Anthropic for processing under your Claude plan or API account terms and settings. Only use this workflow with data you are authorized to share with that service. Keep API keys in the local .env file and never paste them into chat.
+
 Start with **SETUP.md** (4 steps). Then say "run the demo".
 
 ## What it does (6 steps)

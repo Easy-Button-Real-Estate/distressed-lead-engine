@@ -21,9 +21,11 @@ Safe-by-default rules
     "not scrubbed, do not dial".
   * call_eligibility: needs_review (default) / blocked / reviewed_for_campaign. Only YOU set
     reviewed_for_campaign (--call-review file). A clean scrub alone never means a number is legal to call.
-  * time_zone, call_window (stricter of mailing-ZIP zone and area-code zone) and call_window_check on
-    every call row. A row whose check says VERIFY can only become reviewed_for_campaign when your
-    call-review file also has hours_verified = Y.
+  * time_zone, call_window (an ESTIMATED window: stricter of mailing-ZIP zone and area-code zone, and of the
+    coded state rules), call_window_check and sunday_holiday_rule on every call row. call_window_check says
+    "ok" only when the signals agree and every state involved is coded and sourced (timezones.STATE_HOURS);
+    otherwise VERIFY. The kit never establishes the phone's current location, so a row only becomes
+    reviewed_for_campaign when your call-review file also has hours_verified = Y.
   * TEXTS: sms.csv only with --sms, --sms-sender and a consent file whose rows confirm consent for
     this sender (consented_to), this purpose and this method, with confirmed = Y. Each row gets
     sms_review_status (needs_review by default). Skip-trace data is never consent.
@@ -40,7 +42,8 @@ Nothing is sent. These are files for you to load into your own tools.
 import argparse, datetime as dt, json, os, re, sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _common import clean_phone, norm, num, parse_date, read_rows, split_owner, write_rows  # noqa: E402
+from _common import DNC_NOT_CONSENT, PRIVACY_PARAGRAPH, SKIPTRACE_LINE, clean_phone, norm, num, parse_date, read_rows, split_owner, write_rows  # noqa: E402
+import state_rules  # noqa: E402
 import suppression  # noqa: E402
 import timezones  # noqa: E402
 
@@ -121,6 +124,7 @@ A skip-trace provider's "DNC" flag is NOT a scrub.
   your suppression list. consent_log.csv in this folder is the audit trail of every consent row and
   what the kit did with it. Keep consent proof and revocations at least 5 years.
 - Skip-trace data is never consent.
+- {dnc_not_consent}
 
 ## Mail
 - Direct mail to the owner's mailing address is the lowest-risk channel.
@@ -134,13 +138,22 @@ A skip-trace provider's "DNC" flag is NOT a scrub.
 - Call only rows in cold_call.csv, after you mark them reviewed_for_campaign.
 - line_type (mobile / landline / voip / unknown) comes from your skip-trace provider and can be wrong.
   Treat unknown and voip as possible cell phones.
-- Calling hours: federal 8am-9pm in the called person's local time. The time_zone column is an
-  ESTIMATE from the mailing ZIP / state; a cell phone can be anywhere. Some states are stricter
-  (for example FL, OK and MD: 8am-8pm) or limit Sundays / holidays.
+- Calling hours: federal 8am-9pm in the called person's local time. call_window is an ESTIMATED window,
+  never a verified one: time_zone comes from the mailing ZIP / state and the phone's area code, and a cell
+  phone can be anywhere. The kit never establishes the owner's current location, so a person must verify
+  the owner's local time on every row (hours_verified = Y in your call-review file) before it can be
+  reviewed_for_campaign.
 - call_window uses two signals, the mailing-ZIP time zone and each phone's area-code time zone, and
-  gives the stricter window (legal in every possible zone). When they disagree or a zone is unknown,
-  call_window_check says VERIFY: check the calling hours yourself and put hours_verified = Y in your
-  call-review file before the row can be reviewed_for_campaign.
+  gives the stricter window (legal in every possible zone), Monday to Saturday. call_window_check says
+  "ok" only when the signals agree AND every state involved has its hours coded and sourced in the table
+  below. Any other state gets "federal window; [state] hours not coded, VERIFY".
+- sunday_holiday_rule: Sunday and holiday limits for the states involved (TX: Sunday noon-9pm; LA, MS, AL:
+  no Sunday calls; LA and AL: no calls on state holidays). Uncoded states say VERIFY.
+- Before you dial: bring skip-trace results back through the kit (never load the vendor file straight
+  into your dialer).
+
+### Calling hours coded in this kit (last checked {hours_checked}; re-check before relying on them)
+{state_hours}
 - Telemarketer registration: several states (for example FL, TX, UT, WA, AL and LA) require
   telephone solicitors to register, get a license or post a bond before calling into the state.
   Exemptions for real estate vary. Check every state you call into.
@@ -172,7 +185,7 @@ A skip-trace provider's "DNC" flag is NOT a scrub.
 1. State wholesaling / jurisdiction check for {jurisdiction}: see campaign/STATE_AND_JURISDICTION_CHECK.md and the
    section below. Check the state where the land is AND the state where you do business.
 2. DNC scrub (federal + state + internal, scrubbed_by, vendor, within 31 days).
-3. Calling hours (call_window; VERIFY rows need hours_verified = Y).
+3. Calling hours (call_window is an estimate; every row needs hours_verified = Y; check sunday_holiday_rule).
 4. Consent for texts (consent file, consent_evidence).
 5. 10DLC registration for any business texting.
 6. Telemarketer registration in each state you call into.
@@ -181,24 +194,7 @@ A skip-trace provider's "DNC" flag is NOT a scrub.
 ## State wholesaling / assignment rules (read before you sign or assign a contract)
 If you plan to assign the contract or double close instead of buying, several states now regulate
 that. Do not assume vacant land is exempt; check with a local real estate attorney.
-- Pennsylvania: Act 52 of 2024 (in effect Jan 2025) treats marketing an equitable interest
-  in a property as brokerage that needs a license; contracts need specific disclosures and
-  give the seller a cancellation right. Philadelphia also has its own wholesaler license.
-- Illinois: since 2019 (Public Act 101-0357), wholesaling more than once in 12 months
-  needs a real estate license.
-- Virginia: repeatedly marketing contracts as a business can be treated as brokerage that
-  needs a license. Check with the Virginia Real Estate Board or an attorney.
-- Maryland: since Oct 1, 2025 you must tell the owner in writing that you may assign the
-  contract, and tell the assignee you hold only an equitable interest; without the
-  disclosure the seller can cancel any time before closing.
-- Ohio: ORC 5301.95 requires a separate, conspicuous (bold, 12 pt) written disclosure
-  before contracting on residential property you intend to assign; without it the seller
-  can cancel.
-- Oklahoma: the Predatory Real Estate Wholesaler Prohibition Act (plus SB 1075, Nov 2025)
-  requires written disclosure of intent to assign, a notice to seek legal advice, a
-  2-business-day cancellation right, and a license to publicly market an equitable interest.
-- Texas: SB 1577 (2023) requires telling buyers in writing that you hold only an equitable
-  interest when you market a contract; TREC rules apply.
+{wholesale}
 Other states are adding rules every year. Search "[your state] real estate wholesaling law".
 
 Optional assignment disclosure (have your attorney adapt it to your state's required wording):
@@ -221,12 +217,13 @@ an equitable interest in the property, not ownership."
 - Do not upload these lists anywhere public.
 
 ## Personal data (owner names, addresses, phones, emails)
-- Everything stays on your computer in this folder. The kit sends nothing anywhere except the
-  public map / county lookups (no owner data is sent in those) and, only if you run it with
-  --confirm, the owners you choose to your own BatchData account.
-- Never paste API keys into the chat. Set them as environment variables (see SETUP.md).
+- {privacy}
+- The kit's scripts send owner data to only one service, and only if you run it: the optional BatchData
+  skip-trace API sends the owners you choose to your own BatchData account after a cost preview and --confirm.
+- .claude/settings.json is a safeguard, not a guarantee: it limits what Claude Code may run or edit
+  without asking, but it does not stop data Claude Code reads from being sent to Anthropic.
 - Do not upload these files to services that are not part of your campaign (no public drives,
-  AI chats, file-sharing links or forums). Upload only to your own skip-trace provider, mail
+  other AI tools, file-sharing links or forums). Upload only to your own skip-trace provider, mail
   house, dialer or CRM, under their terms.
 - Protect the folder (your computer's login password and disk encryption: FileVault / BitLocker).
 - Delete old exports you no longer need: `PY scripts/cleanup_exports.py` lists output files older
@@ -250,8 +247,10 @@ STATE_TZ = {
     "KS": "Central or Mountain (KS)", "NE": "Central or Mountain (NE)", "ND": "Central or Mountain (ND)",
     "SD": "Central or Mountain (SD)", "ID": "Mountain or Pacific (ID)", "OR": "Pacific or Mountain (OR)",
 }
-CALL_HOURS = ("Federal rule: 8am-9pm in the called person's local time. Some states are stricter (for example FL, OK and MD "
-              "allow 8am-8pm) and some limit Sundays and holidays. time_zone is an estimate from the mailing ZIP / state; a cell number can be anywhere.")
+CALL_HOURS = ("Federal rule: 8am-9pm in the called person's local time. Coded stricter states: " +
+              ", ".join(f"{k} {v['start']}am-{v['end'] - 12}pm" for k, v in sorted(timezones.STATE_HOURS.items())) +
+              " (sources in COMPLIANCE.md). Other states are not coded: VERIFY. TX, LA, MS and AL limit Sundays and/or holidays. "
+              "call_window is an estimated window from the mailing ZIP / state and area code; a cell number can be anywhere.")
 LAST_VERIFIED = "2026-11-19"
 CALL_ELIGIBILITY = ("needs_review", "blocked", "reviewed_for_campaign")
 SCRUB_MAX_DAYS = 31
@@ -341,12 +340,68 @@ def load_review(path):
     return out
 
 
+# Owner-level motivation signals: four states each. A missing signal never reads as "not motivated".
+SIG_KEYS = ("long_hold", "out_of_state", "out_of_county", "no_mortgage", "tax_delinquent", "estate_heirs", "trust", "multiple_owners")
+SIG_PRESENT, SIG_ABSENT, SIG_NOT_CHECKED, SIG_UNAVAILABLE = "present", "checked-not-present", "not-checked", "unavailable-from-source"
+_SIG_RANK = {SIG_PRESENT: 0, SIG_UNAVAILABLE: 1, SIG_NOT_CHECKED: 2, SIG_ABSENT: 3}
+SIG_LABEL = {"long_hold": "long hold", "out_of_state": "out-of-state owner", "out_of_county": "out-of-county owner",
+             "no_mortgage": "no mortgage", "tax_delinquent": "tax delinquent", "estate_heirs": "estate / heirs",
+             "trust": "trust owner", "multiple_owners": "multiple owners"}
+
+
+def _sig(v):
+    t = str(v or "").strip().lower()
+    if t in _SIG_RANK:
+        return t
+    return SIG_PRESENT if t in ("y", "yes") else SIG_NOT_CHECKED  # older ranked files: "Y" or blank
+
+
+def merge_signal(old, new):
+    """Owner-level state across the owner's parcels: present if any parcel has it; checked-not-present only when
+    every parcel was checked and none has it; otherwise unavailable-from-source / not-checked."""
+    n = _sig(new)
+    return n if old is None or _SIG_RANK[n] < _SIG_RANK[old] else old
+
+
+def signal_gaps(states):
+    nc = [SIG_LABEL[k] for k, v in states.items() if v == SIG_NOT_CHECKED]
+    un = [SIG_LABEL[k] for k, v in states.items() if v == SIG_UNAVAILABLE]
+    return "; ".join(x for x in (("not checked: " + ", ".join(nc)) if nc else "", ("unavailable from source: " + ", ".join(un)) if un else "") if x)
+
+
+def motivation_note(o):
+    st = {k: (o.get("sig") or {}).get(k) or SIG_NOT_CHECKED for k in SIG_KEYS}
+    pres = [SIG_LABEL[k] for k, v in st.items() if v == SIG_PRESENT]
+    gaps = [k for k, v in st.items() if v in (SIG_NOT_CHECKED, SIG_UNAVAILABLE)]
+    if pres:
+        return "present: " + ", ".join(pres) + (f" ({len(gaps)} other signal(s) not checked or unavailable)" if gaps else "")
+    if gaps:
+        return (f"no signal present among the {len(SIG_KEYS) - len(gaps)} checked; {len(gaps)} not checked or unavailable "
+                "(unknown, not 'unmotivated')")
+    return "all signals checked, none present"
+
+
+def state_hours_table():
+    L = ["| State | Hours (local) | Sundays / holidays | Source | Last checked |", "|---|---|---|---|---|"]
+    for st, h in sorted(timezones.STATE_HOURS.items()):
+        L.append(f"| {st} | {h['note']} | {timezones.sunday_holiday(st)[4:]} | {h['source']} | {h['checked']} |")
+    L.append("| all other states | federal 8am-9pm only (state hours not coded, VERIFY) | not coded, VERIFY | " + timezones.FED_SOURCE + " | "
+             + timezones.HOURS_CHECKED + " |")
+    return "\n".join(L)
+
+
+def wholesale_notes():
+    names = {"NC": "North Carolina", "VA": "Virginia", "MD": "Maryland", "PA": "Pennsylvania", "IL": "Illinois", "OH": "Ohio",
+             "OK": "Oklahoma", "TX": "Texas"}
+    return "\n".join(f"- {names.get(st, st)}: {state_rules.one_line(st)}" for st in sorted(state_rules.STATE_NOTES))
+
+
 def split_multi(v):
     return [x.strip() for x in str(v or "").split(";") if x.strip()]
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(allow_abbrev=False, description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--ranked", required=True)
     ap.add_argument("--traced")
     ap.add_argument("--satellite")
@@ -428,6 +483,8 @@ def main(argv=None):
         if r.get("zoning_use"):
             o["zoning"].append(r["zoning_use"])
         o["motivation_signals"].update(split_multi(r.get("motivation_signals")))
+        for k in SIG_KEYS:
+            o.setdefault("sig", {})[k] = merge_signal(o.get("sig", {}).get(k), r.get("sig_" + k))
         o["split_adu_signals"].update(split_multi(r.get("split_adu_signals")))
         o["yield_gross"] += int(num(r.get("est_lot_yield_gross")) or 0)
         o["yield_net"] += int(num(r.get("est_lot_yield_net")) or 0)
@@ -488,15 +545,20 @@ def main(argv=None):
         tz_state = (o["mail_state"] or o["state"] or "").strip().upper()
         tz_zone, tz_basis = timezones.estimate(tz_state, o["mail_zip"] if o["mail_state"] else "")
         cw, cw_basis, cw_check = timezones.call_window(tz_state, tz_zone, ready or unscrubbed)
-        if elig == "reviewed_for_campaign" and cw_check.startswith("VERIFY") and not (rv and rv[3]):
-            elig = "needs_review"  # uncertain location: the user must verify calling hours (hours_verified = Y)
+        hv = bool(rv and rv[3])
+        if elig == "reviewed_for_campaign" and not hv:
+            elig = "needs_review"  # the phone's current location is never established: a person verifies local time first
             cw_check += " (reviewed_for_campaign not applied: add hours_verified = Y to your call review)"
+        sh_rule = timezones.sunday_holiday(tz_state, ready or unscrubbed)
         rec.update({
             "first_name": t.get("first_name") or o["first_name"], "last_name": t.get("last_name") or o["last_name"],
             "total_acres": round(o["total_acres"], 2), "apns": "; ".join(o["apns"]),
             "property_address": "; ".join(o["property_addresses"]) or ("APN " + "; ".join(o["apns"])),
             "zoning": "; ".join(dict.fromkeys(o["zoning"])), "motivation_signals": "; ".join(sorted(o["motivation_signals"])),
             "split_adu_signals": "; ".join(sorted(o["split_adu_signals"])),
+            **{"sig_" + k: (o.get("sig") or {}).get(k) or SIG_NOT_CHECKED for k in SIG_KEYS},
+            "signals_not_checked": signal_gaps({k: (o.get("sig") or {}).get(k) or SIG_NOT_CHECKED for k in SIG_KEYS}),
+            "motivation_note": motivation_note(o),
             "est_lot_yield_gross": o["yield_gross"] or "", "est_lot_yield_net": o["yield_net"] or "",
             "value_range": (f"${o['ev_low']:,.0f}-${o['ev_high']:,.0f}" if o["ev_high"] else ""),
             "satellite_review": "; ".join(o["satellite"]),
@@ -509,7 +571,8 @@ def main(argv=None):
             "call_review_by": (rv[1] + " " + rv[2]).strip() if (rv and ready) else "",
             "line_type": "; ".join(ready_types), "time_zone": tz_zone, "time_zone_basis": tz_basis,
             "calling_hours_note": CALL_HOURS, "call_rules": VOICE_LINE, "call_window": cw, "call_window_basis": cw_basis,
-            "call_window_check": cw_check, "dialing": MANUALLY_DIALED,
+            "call_window_check": cw_check, "sunday_holiday_rule": sh_rule, "hours_verified": "Y" if hv else "",
+            "dialing": MANUALLY_DIALED,
             "phone_status": (HOLD_STATUS if hold else ("scrubbed " + ready_meta[0] + " (" + "; ".join(x for x in ready_by[0] if x) +
                                                        "), still needs your review before dialing") if ready else (NOT_SCRUBBED if unscrubbed else
                                                        ("no phone (not traced yet)" if not t else "no phone found"))),
@@ -538,9 +601,10 @@ def main(argv=None):
     call = [r for r in recs if r["phone1"]]
     sms = [r for r in recs if r["sms_phone"]] if (a.sms and consent and not hold) else []
     call_cols = ["owner", "first_name", "last_name", "phone1", "phone2", "phone3", "line_type", "dnc_status", "dnc_scrub_date", "call_eligibility",
-                 "call_review_by", "time_zone", "time_zone_basis", "call_window", "call_window_check", "call_window_basis", "calling_hours_note",
-                 "call_rules", "dialing"] + prop + ["best_rank", "tier", "motivation_signals", "split_adu_signals",
-                                                                               "why", "research_next", "is_new", "owner_key"]
+                 "call_review_by", "time_zone", "time_zone_basis", "call_window", "call_window_check", "sunday_holiday_rule", "hours_verified",
+                 "call_window_basis", "calling_hours_note",
+                 "call_rules", "dialing"] + prop + ["best_rank", "tier", "motivation_signals", "motivation_note", "signals_not_checked"] + \
+                ["sig_" + k for k in SIG_KEYS] + ["split_adu_signals", "why", "research_next", "is_new", "owner_key"]
     write_rows(os.path.join(out, "mail.csv"), mail, base + prop + ["best_rank", "tier", "is_new"])
     held_note = os.path.join(out, "PHONE_AND_SMS_HELD.txt")
     if hold:
@@ -549,7 +613,8 @@ def main(argv=None):
                 os.remove(os.path.join(out, fn))  # never leave an old phone or text list behind
         with open(held_note, "w") as f:
             f.write("PHONE AND TEXT OUTPUTS ARE HELD.\n\nReason: " + hold + "\n\n" + OPT_OUT_SENTENCE + "\n" + MANUAL_SENTENCE +
-                    "\nSave them in the suppress/ folder and re-run. Until then this kit writes no cold_call.csv, no "
+                    "\nBring each export in with scripts/suppression.py import <file> --export-date YYYY-MM-DD (the date that system "
+                    "GENERATED it, not the day you copied it; an old export copied in today still counts as old) and re-run. Until then this kit writes no cold_call.csv, no "
                     "cold_call_NEEDS_SCRUB.csv and no sms.csv, and the phone columns in crm_import.csv are blank.\n")
     else:
         if os.path.exists(held_note):
@@ -563,8 +628,9 @@ def main(argv=None):
     elif os.path.exists(sms_path):
         os.remove(sms_path)  # never leave an old text list behind
     crm_fields = base + prop + ["phone1", "phone2", "phone3", "phone_status", "line_type", "dnc_status", "dnc_scrub_date", "call_eligibility",
-                                "time_zone", "time_zone_basis", "call_window", "call_window_check", "sms_phone", "sms_consent", "sms_review_status", "email1", "litigator_removed", "suppressed",
-                                "trace_status", "best_rank", "tier", "priority", "motivation_signals", "split_adu_signals",
+                                "time_zone", "time_zone_basis", "call_window", "call_window_check", "sunday_holiday_rule", "hours_verified", "sms_phone", "sms_consent", "sms_review_status", "email1", "litigator_removed", "suppressed",
+                                "trace_status", "best_rank", "tier", "priority", "motivation_signals", "motivation_note", "signals_not_checked"] + \
+                                ["sig_" + k for k in SIG_KEYS] + ["split_adu_signals",
                                 "est_lot_yield_gross", "est_lot_yield_net", "value_range", "satellite_review", "why", "research_next",
                                 "map_link", "tags", "is_new", "first_seen", "owner_key"]
     write_rows(os.path.join(out, "crm_import.csv"), recs, crm_fields)
@@ -583,7 +649,9 @@ def main(argv=None):
                 .replace("{opt_out}", OPT_OUT_SENTENCE).replace("{manual}", MANUAL_SENTENCE).replace("{manually_dialed}", MANUALLY_DIALED)
                 .replace("{estate_rule}", ESTATE_RULE).replace("{data_license}", DATA_LICENSE_LINE)
                 .replace("{state_lists}", STATE_DNC_LISTS).replace("{jurisdiction}", a.jurisdiction or (rows[0].get("county", "") + ", " + rows[0].get("state", "") if rows else "") or "not set")
-                .replace("{last_verified}", LAST_VERIFIED))
+                .replace("{last_verified}", LAST_VERIFIED).replace("{privacy}", PRIVACY_PARAGRAPH)
+                .replace("{dnc_not_consent}", DNC_NOT_CONSENT).replace("{hours_checked}", timezones.HOURS_CHECKED)
+                .replace("{state_hours}", state_hours_table()).replace("{wholesale}", wholesale_notes()))
     summary = [PREPARED_NOT_APPROVED, VOICE_LINE] + (["PHONE AND TEXT OUTPUTS HELD: " + hold] if hold else []) + [
                f"Marketing lists ({today})", f"Tiers kept: {', '.join(want)}",
                f"Parcels: {len(rows)} -> owners: {len(recs)} (dropped in satellite review: {len(dropped)})",
